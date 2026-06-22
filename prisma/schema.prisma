@@ -1,0 +1,160 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String
+  password      String
+  role          String    @default("agent")
+  avatar        String?
+  isActive      Boolean   @default(true)
+  teamId        String?
+  team          Team?     @relation(fields: [teamId], references: [id])
+  sales         Sale[]
+  auditLogs     AuditLog[]
+  deletionRequests DeletionRequest[] @relation("RequestedBy")
+  deletionApprovals DeletionRequest[] @relation("ApprovedBy")
+  refunds       Refund[]  @relation("RefundUser")
+  refundsCreated Refund[] @relation("RefundCreator")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Team {
+  id            String    @id @default(cuid())
+  name          String
+  color         String    @default("#6c5ce7")
+  icon          String?
+  isActive      Boolean   @default(true)
+  members       User[]
+  goals         Goal[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Product {
+  id            String    @id @default(cuid())
+  name          String
+  description   String?
+  isActive      Boolean   @default(true)
+  packages      Package[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Package {
+  id                  String    @id @default(cuid())
+  name                String
+  personCount         Int       @default(1)
+  duration            String    @default("yearly")
+  basePrice           Float
+  paymentLinkPayTR    String?
+  paymentLinkSuperead String?
+  isActive            Boolean   @default(true)
+  productId           String
+  product             Product   @relation(fields: [productId], references: [id])
+  sales               Sale[]
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+}
+
+model Sale {
+  id            String    @id @default(cuid())
+  quantity      Int       @default(1)
+  unitPrice     Float
+  totalPrice    Float
+  discount      Float     @default(0)
+  discountReason String?
+  customerType  String    @default("new")
+  customerNote  String?
+  personCount   Int       @default(1)
+  duration      String    @default("yearly")
+  packageType   String    @default("individual")
+  isDeleted     Boolean   @default(false)
+  deletedAt     DateTime?
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  packageId     String?
+  package       Package?  @relation(fields: [packageId], references: [id])
+  refunds       Refund[]
+  deletionRequest DeletionRequest?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model DeletionRequest {
+  id            String    @id @default(cuid())
+  reason        String
+  status        String    @default("pending")
+  saleId        String    @unique
+  sale          Sale      @relation(fields: [saleId], references: [id])
+  requestedById String
+  requestedBy   User      @relation("RequestedBy", fields: [requestedById], references: [id])
+  approvedById  String?
+  approvedBy    User?     @relation("ApprovedBy", fields: [approvedById], references: [id])
+  approvedAt    DateTime?
+  createdAt     DateTime  @default(now())
+}
+
+model Refund {
+  id            String    @id @default(cuid())
+  amount        Float
+  reason        String
+  userId        String
+  user          User      @relation("RefundUser", fields: [userId], references: [id])
+  saleId        String?
+  sale          Sale?     @relation(fields: [saleId], references: [id])
+  createdById   String
+  createdBy     User      @relation("RefundCreator", fields: [createdById], references: [id])
+  createdAt     DateTime  @default(now())
+}
+
+model AuditLog {
+  id            String    @id @default(cuid())
+  action        String
+  entity        String
+  entityId      String
+  oldData       String?
+  newData       String?
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  createdAt     DateTime  @default(now())
+}
+
+model Goal {
+  id            String    @id @default(cuid())
+  type          String
+  target        Float
+  period        String
+  teamId        String?
+  team          Team?     @relation(fields: [teamId], references: [id])
+  isGlobal      Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model BonusTier {
+  id            String    @id @default(cuid())
+  minAmount     Float
+  bonusAmount   Float
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Announcement {
+  id            String    @id @default(cuid())
+  title         String
+  message       String
+  type          String    @default("info")
+  isActive      Boolean   @default(true)
+  expiresAt     DateTime?
+  createdAt     DateTime  @default(now())
+}
