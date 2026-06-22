@@ -144,7 +144,7 @@ function TeamCard({ stat, rank }: { stat: TeamStat; rank: number }) {
 
         {/* Daily Goal Bar */}
         {stat.dailyGoal > 0 && (
-          <div className="mb-3">
+          <div className="mb-3 group/daily relative cursor-default">
             <div className="flex justify-between text-xs text-slate-400 mb-1">
               <span>Günlük Hedef</span>
               <span>{formatTL(stat.dailyGoal)} ₺</span>
@@ -160,12 +160,19 @@ function TeamCard({ stat, rank }: { stat: TeamStat; rank: number }) {
             <p className="text-right text-xs mt-1" style={{ color: goalReached ? "#4ade80" : stat.team.color }}>
               %{Math.round(dailyPercent)}
             </p>
+            <div className="absolute -top-16 left-1/2 -translate-x-1/2 bg-slate-800 border border-white/20 rounded-lg px-3 py-2 text-xs opacity-0 group-hover/daily:opacity-100 transition-opacity pointer-events-none z-10 whitespace-nowrap shadow-lg">
+              <span className="text-slate-400">Mevcut: </span><span className="text-white font-bold">{formatTL(stat.todayTotal)} ₺</span>
+              <span className="text-slate-500 mx-1">/</span>
+              <span className="text-slate-400">Hedef: </span><span className="text-white font-bold">{formatTL(stat.dailyGoal)} ₺</span>
+              <span className="text-slate-500 mx-1">·</span>
+              <span className="text-slate-400">Kalan: </span><span className="font-bold" style={{ color: goalReached ? "#4ade80" : "#f87171" }}>{formatTL(Math.max(0, stat.dailyGoal - stat.todayTotal))} ₺</span>
+            </div>
           </div>
         )}
 
         {/* Monthly Goal Bar */}
         {stat.monthlyGoal > 0 && (
-          <div className="mb-3">
+          <div className="mb-3 group/monthly relative cursor-default">
             <div className="flex justify-between text-xs text-slate-400 mb-1">
               <span>Aylık Hedef</span>
               <span>{formatTL(stat.monthlyGoal)} ₺</span>
@@ -175,6 +182,13 @@ function TeamCard({ stat, rank }: { stat: TeamStat; rank: number }) {
                 className="h-full rounded-full transition-all duration-1000 bg-gradient-to-r from-blue-500 to-cyan-400"
                 style={{ width: `${Math.min(monthPercent, 100)}%` }}
               />
+            </div>
+            <div className="absolute -top-16 left-1/2 -translate-x-1/2 bg-slate-800 border border-white/20 rounded-lg px-3 py-2 text-xs opacity-0 group-hover/monthly:opacity-100 transition-opacity pointer-events-none z-10 whitespace-nowrap shadow-lg">
+              <span className="text-slate-400">Mevcut: </span><span className="text-white font-bold">{formatTL(stat.monthTotal)} ₺</span>
+              <span className="text-slate-500 mx-1">/</span>
+              <span className="text-slate-400">Hedef: </span><span className="text-white font-bold">{formatTL(stat.monthlyGoal)} ₺</span>
+              <span className="text-slate-500 mx-1">·</span>
+              <span className="text-slate-400">Kalan: </span><span className="font-bold" style={{ color: monthGoalReached ? "#4ade80" : "#f87171" }}>{formatTL(Math.max(0, stat.monthlyGoal - stat.monthTotal))} ₺</span>
             </div>
           </div>
         )}
@@ -290,18 +304,36 @@ export default function DashboardPage() {
             <p className="text-sm text-blue-300">Bu Ay Genel</p>
             <p className="text-3xl font-bold mt-1">{formatTL(data.overallMonthTotal)} ₺</p>
           </div>
-          <div className="bg-gradient-to-br from-green-600/20 to-emerald-600/20 border border-green-500/30 rounded-2xl p-5 text-center relative overflow-hidden">
+          <div className="bg-gradient-to-br from-green-600/20 to-emerald-600/20 border border-green-500/30 rounded-2xl p-5 text-center relative overflow-hidden group cursor-default">
             <p className="text-sm text-green-300">Günlük Hedef</p>
             <div className="relative flex items-center justify-center mt-2">
               <ProgressRing percent={overallDailyPercent} color="#22c55e" size={80} />
               <span className="absolute text-lg font-bold">{Math.round(overallDailyPercent)}%</span>
             </div>
+            <div className="absolute inset-0 flex items-center justify-center bg-black/80 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+              <div className="text-center">
+                <p className="text-xs text-slate-400">Mevcut</p>
+                <p className="text-lg font-bold text-green-400">{formatTL(data.overallTodayTotal)} ₺</p>
+                <p className="text-xs text-slate-400 mt-1">Hedef</p>
+                <p className="text-lg font-bold text-white">{formatTL(data.globalDailyGoal)} ₺</p>
+                <p className="text-xs text-slate-500 mt-1">Kalan: {formatTL(Math.max(0, data.globalDailyGoal - data.overallTodayTotal))} ₺</p>
+              </div>
+            </div>
           </div>
-          <div className="bg-gradient-to-br from-orange-600/20 to-yellow-600/20 border border-orange-500/30 rounded-2xl p-5 text-center relative overflow-hidden">
+          <div className="bg-gradient-to-br from-orange-600/20 to-yellow-600/20 border border-orange-500/30 rounded-2xl p-5 text-center relative overflow-hidden group cursor-default">
             <p className="text-sm text-orange-300">Aylık Hedef</p>
             <div className="relative flex items-center justify-center mt-2">
               <ProgressRing percent={overallMonthPercent} color="#f59e0b" size={80} />
               <span className="absolute text-lg font-bold">{Math.round(overallMonthPercent)}%</span>
+            </div>
+            <div className="absolute inset-0 flex items-center justify-center bg-black/80 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+              <div className="text-center">
+                <p className="text-xs text-slate-400">Mevcut</p>
+                <p className="text-lg font-bold text-orange-400">{formatTL(data.overallMonthTotal)} ₺</p>
+                <p className="text-xs text-slate-400 mt-1">Hedef</p>
+                <p className="text-lg font-bold text-white">{formatTL(data.globalMonthlyGoal)} ₺</p>
+                <p className="text-xs text-slate-500 mt-1">Kalan: {formatTL(Math.max(0, data.globalMonthlyGoal - data.overallMonthTotal))} ₺</p>
+              </div>
             </div>
           </div>
         </div>

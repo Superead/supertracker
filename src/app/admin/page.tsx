@@ -145,6 +145,8 @@ export default function AdminPage() {
   const [addMemberTeamId, setAddMemberTeamId] = useState<string | null>(null);
   const [addMemberName, setAddMemberName] = useState("");
   const [addMemberEmail, setAddMemberEmail] = useState("");
+  const [resetPwUserId, setResetPwUserId] = useState<string | null>(null);
+  const [resetPwValue, setResetPwValue] = useState("satis123");
 
   // Refunds
   const [refunds, setRefunds] = useState<RefundData[]>([]);
@@ -385,6 +387,22 @@ export default function AdminPage() {
       body: JSON.stringify({ action: "remove-member", userId }),
     });
     await loadData();
+  }
+
+  async function handleResetPassword(userId: string) {
+    const res = await fetch("/api/admin/teams", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "reset-password", userId, newPassword: resetPwValue }),
+    });
+    if (res.ok) {
+      alert("Şifre sıfırlandı!");
+      setResetPwUserId(null);
+      setResetPwValue("satis123");
+    } else {
+      const err = await res.json();
+      alert(err.error || "Hata oluştu");
+    }
   }
 
   async function handleCreateRefund(e: React.FormEvent) {
@@ -1087,17 +1105,51 @@ export default function AdminPage() {
                     </div>
                     <div className="space-y-2 ml-14">
                       {team.members.map((m) => (
-                        <div key={m.id} className="flex items-center justify-between bg-white/5 rounded-lg px-3 py-2">
-                          <div>
-                            <span className="text-white text-sm font-medium">{m.name}</span>
-                            <span className="text-slate-500 text-xs ml-2">{m.email}</span>
+                        <div key={m.id} className="bg-white/5 rounded-lg px-3 py-2">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <span className="text-white text-sm font-medium">{m.name}</span>
+                              <span className="text-slate-500 text-xs ml-2">{m.email}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => { setResetPwUserId(resetPwUserId === m.id ? null : m.id); setResetPwValue("satis123"); }}
+                                className="text-yellow-400 hover:text-yellow-300 text-xs"
+                              >
+                                🔑 Şifre
+                              </button>
+                              <button
+                                onClick={() => handleRemoveMember(m.id, m.name)}
+                                className="text-red-400 hover:text-red-300 text-xs"
+                              >
+                                Çıkar
+                              </button>
+                            </div>
                           </div>
-                          <button
-                            onClick={() => handleRemoveMember(m.id, m.name)}
-                            className="text-red-400 hover:text-red-300 text-xs"
-                          >
-                            Çıkar
-                          </button>
+                          {resetPwUserId === m.id && (
+                            <div className="flex gap-2 mt-2">
+                              <input
+                                type="text"
+                                value={resetPwValue}
+                                onChange={(e) => setResetPwValue(e.target.value)}
+                                className="flex-1 px-3 py-1.5 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:ring-2 focus:ring-yellow-500 focus:outline-none"
+                                placeholder="Yeni şifre"
+                                minLength={6}
+                              />
+                              <button
+                                onClick={() => handleResetPassword(m.id)}
+                                className="px-3 py-1.5 bg-yellow-600 text-white rounded-lg text-sm hover:bg-yellow-700 transition"
+                              >
+                                Sıfırla
+                              </button>
+                              <button
+                                onClick={() => setResetPwUserId(null)}
+                                className="px-3 py-1.5 bg-slate-600 text-white rounded-lg text-sm hover:bg-slate-700 transition"
+                              >
+                                İptal
+                              </button>
+                            </div>
+                          )}
                         </div>
                       ))}
                       {team.members.length === 0 && (

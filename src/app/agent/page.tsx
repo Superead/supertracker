@@ -78,6 +78,12 @@ export default function AgentPage() {
   // Refunds
   const [monthRefunds, setMonthRefunds] = useState<{id: string; amount: number; reason: string; createdAt: string}[]>([]);
 
+  // Password change
+  const [showPassword, setShowPassword] = useState(false);
+  const [currentPw, setCurrentPw] = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [pwMsg, setPwMsg] = useState("");
+
   const loadSales = useCallback(async () => {
     const today = new Date().toISOString().split("T")[0];
     const now = new Date();
@@ -175,6 +181,25 @@ export default function AgentPage() {
     router.push("/login");
   }
 
+  async function handleChangePassword(e: React.FormEvent) {
+    e.preventDefault();
+    setPwMsg("");
+    const res = await fetch("/api/auth/change-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ currentPassword: currentPw, newPassword: newPw }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setPwMsg("Şifre başarıyla değiştirildi!");
+      setCurrentPw("");
+      setNewPw("");
+      setTimeout(() => { setShowPassword(false); setPwMsg(""); }, 2000);
+    } else {
+      setPwMsg(data.error || "Hata oluştu");
+    }
+  }
+
   async function copyToClipboard(text: string, id: string) {
     await navigator.clipboard.writeText(text);
     setCopiedLink(id);
@@ -206,6 +231,9 @@ export default function AgentPage() {
             <p className="text-sm text-slate-400">Bugünkü satışların</p>
           </div>
           <div className="flex items-center gap-3">
+            <button onClick={() => setShowPassword(!showPassword)} className="px-4 py-2 bg-slate-600/30 text-slate-300 rounded-lg text-sm hover:bg-slate-600/50 transition">
+              🔑 Şifre
+            </button>
             <a href="/dashboard" className="px-4 py-2 bg-purple-600/30 text-purple-300 rounded-lg text-sm hover:bg-purple-600/50 transition">
               📊 Dashboard
             </a>
@@ -215,6 +243,38 @@ export default function AgentPage() {
           </div>
         </div>
       </header>
+
+      {/* Password Change */}
+      {showPassword && (
+        <div className="max-w-4xl mx-auto px-4 pt-4">
+          <form onSubmit={handleChangePassword} className="bg-white/5 border border-white/10 rounded-2xl p-4">
+            <h3 className="text-sm font-bold text-white mb-3">Şifre Değiştir</h3>
+            <div className="flex gap-3 items-end">
+              <input
+                type="password"
+                value={currentPw}
+                onChange={(e) => setCurrentPw(e.target.value)}
+                className="flex-1 px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                placeholder="Mevcut şifre"
+                required
+              />
+              <input
+                type="password"
+                value={newPw}
+                onChange={(e) => setNewPw(e.target.value)}
+                className="flex-1 px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                placeholder="Yeni şifre (min 6 karakter)"
+                required
+                minLength={6}
+              />
+              <button type="submit" className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 transition">
+                Değiştir
+              </button>
+            </div>
+            {pwMsg && <p className={`text-xs mt-2 ${pwMsg.includes("başarı") ? "text-green-400" : "text-red-400"}`}>{pwMsg}</p>}
+          </form>
+        </div>
+      )}
 
       <main className="max-w-4xl mx-auto px-4 py-6">
         {/* Today & Month Summary */}

@@ -116,6 +116,19 @@ export async function PUT(request: NextRequest) {
     return Response.json({ success: true });
   }
 
+  if (action === "reset-password") {
+    const { userId, newPassword } = body;
+    if (!newPassword || newPassword.length < 6) {
+      return Response.json({ error: "Şifre en az 6 karakter olmalı" }, { status: 400 });
+    }
+    await prisma.user.update({
+      where: { id: userId },
+      data: { password: hashSync(newPassword, 10) },
+    });
+    await createAuditLog(user.id, "update", "user", userId, null, { action: "reset-password" });
+    return Response.json({ success: true });
+  }
+
   const { id, name, color } = body;
   const old = await prisma.team.findUnique({ where: { id } });
   const team = await prisma.team.update({
