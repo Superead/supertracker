@@ -138,6 +138,13 @@ export default function AdminPage() {
   const [editingTeam, setEditingTeam] = useState<string | null>(null);
   const [editTeamName, setEditTeamName] = useState("");
   const [editTeamColor, setEditTeamColor] = useState("");
+  const [newTeamName, setNewTeamName] = useState("");
+  const [newTeamColor, setNewTeamColor] = useState("#6c5ce7");
+  const [newMember1, setNewMember1] = useState("");
+  const [newMember2, setNewMember2] = useState("");
+  const [addMemberTeamId, setAddMemberTeamId] = useState<string | null>(null);
+  const [addMemberName, setAddMemberName] = useState("");
+  const [addMemberEmail, setAddMemberEmail] = useState("");
 
   // Refunds
   const [refunds, setRefunds] = useState<RefundData[]>([]);
@@ -321,6 +328,62 @@ export default function AdminPage() {
       body: JSON.stringify({ id, name: editTeamName, color: editTeamColor }),
     });
     setEditingTeam(null);
+    await loadData();
+  }
+
+  async function handleCreateTeam(e: React.FormEvent) {
+    e.preventDefault();
+    const members: {name: string; email: string}[] = [];
+    if (newMember1.trim()) {
+      const email = newMember1.trim().toLowerCase().replace(/ı/g, "i").replace(/ö/g, "o").replace(/ü/g, "u").replace(/ş/g, "s").replace(/ç/g, "c").replace(/ğ/g, "g") + "@superead.com";
+      members.push({ name: newMember1.trim(), email });
+    }
+    if (newMember2.trim()) {
+      const email = newMember2.trim().toLowerCase().replace(/ı/g, "i").replace(/ö/g, "o").replace(/ü/g, "u").replace(/ş/g, "s").replace(/ç/g, "c").replace(/ğ/g, "g") + "@superead.com";
+      members.push({ name: newMember2.trim(), email });
+    }
+    const res = await fetch("/api/admin/teams", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: newTeamName, color: newTeamColor, members }),
+    });
+    if (res.ok) {
+      setNewTeamName("");
+      setNewTeamColor("#6c5ce7");
+      setNewMember1("");
+      setNewMember2("");
+      await loadData();
+    } else {
+      const err = await res.json();
+      alert(err.error || "Hata oluştu");
+    }
+  }
+
+  async function handleAddMember(teamId: string) {
+    if (!addMemberName || !addMemberEmail) return;
+    const res = await fetch("/api/admin/teams", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "add-member", teamId, name: addMemberName, email: addMemberEmail }),
+    });
+    if (res.ok) {
+      setAddMemberTeamId(null);
+      setAddMemberName("");
+      setAddMemberEmail("");
+      await loadData();
+    } else {
+      const err = await res.json();
+      alert(err.error || "Hata oluştu");
+    }
+  }
+
+  async function handleRemoveMember(userId: string, userName: string) {
+    if (!confirm(`${userName} takımdan çıkarılsın mı?`)) return;
+    await fetch("/api/admin/teams", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "remove-member", userId }),
+    });
     await loadData();
   }
 
@@ -923,7 +986,52 @@ export default function AdminPage() {
         )}
         {/* Teams Tab */}
         {tab === "teams" && (
-          <div className="space-y-4">
+          <div className="space-y-6">
+            {/* New Team Form */}
+            <form onSubmit={handleCreateTeam} className="bg-white/5 border border-white/10 rounded-2xl p-6">
+              <h3 className="text-lg font-bold text-white mb-4">Yeni Takım Ekle</h3>
+              <div className="flex gap-3 mb-4">
+                <input
+                  type="color"
+                  value={newTeamColor}
+                  onChange={(e) => setNewTeamColor(e.target.value)}
+                  className="w-12 h-12 rounded-lg cursor-pointer border-2 border-white/20 bg-transparent shrink-0"
+                />
+                <input
+                  type="text"
+                  value={newTeamName}
+                  onChange={(e) => setNewTeamName(e.target.value)}
+                  className="flex-1 px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                  placeholder="Takım adı (ör: Şeyma-İrem)"
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <input
+                  type="text"
+                  value={newMember1}
+                  onChange={(e) => setNewMember1(e.target.value)}
+                  className="px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                  placeholder="1. Üye adı (ör: Şeyma)"
+                />
+                <input
+                  type="text"
+                  value={newMember2}
+                  onChange={(e) => setNewMember2(e.target.value)}
+                  className="px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                  placeholder="2. Üye adı (ör: İrem K.)"
+                />
+              </div>
+              <p className="text-xs text-slate-500 mb-4">Email otomatik oluşturulur: isim@superead.com — Şifre: satis123</p>
+              <button
+                type="submit"
+                className="px-6 py-3 bg-purple-600 text-white rounded-xl font-medium hover:bg-purple-700 transition"
+              >
+                Takım Oluştur
+              </button>
+            </form>
+
+            {/* Existing Teams */}
             {teams.map((team) => (
               <div
                 key={team.id}
@@ -957,29 +1065,86 @@ export default function AdminPage() {
                     </button>
                   </div>
                 ) : (
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div
-                        className="w-10 h-10 rounded-xl"
-                        style={{ backgroundColor: team.color }}
-                      />
-                      <div>
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-4">
+                        <div
+                          className="w-10 h-10 rounded-xl"
+                          style={{ backgroundColor: team.color }}
+                        />
                         <h3 className="text-lg font-bold text-white">{team.name}</h3>
-                        <p className="text-sm text-slate-400">
-                          {team.members.map((m) => m.name).join(", ") || "Üye yok"}
-                        </p>
                       </div>
+                      <button
+                        onClick={() => {
+                          setEditingTeam(team.id);
+                          setEditTeamName(team.name);
+                          setEditTeamColor(team.color);
+                        }}
+                        className="px-4 py-2 bg-blue-600/30 text-blue-300 rounded-lg text-sm hover:bg-blue-600/50 transition"
+                      >
+                        Düzenle
+                      </button>
                     </div>
-                    <button
-                      onClick={() => {
-                        setEditingTeam(team.id);
-                        setEditTeamName(team.name);
-                        setEditTeamColor(team.color);
-                      }}
-                      className="px-4 py-2 bg-blue-600/30 text-blue-300 rounded-lg text-sm hover:bg-blue-600/50 transition"
-                    >
-                      Düzenle
-                    </button>
+                    <div className="space-y-2 ml-14">
+                      {team.members.map((m) => (
+                        <div key={m.id} className="flex items-center justify-between bg-white/5 rounded-lg px-3 py-2">
+                          <div>
+                            <span className="text-white text-sm font-medium">{m.name}</span>
+                            <span className="text-slate-500 text-xs ml-2">{m.email}</span>
+                          </div>
+                          <button
+                            onClick={() => handleRemoveMember(m.id, m.name)}
+                            className="text-red-400 hover:text-red-300 text-xs"
+                          >
+                            Çıkar
+                          </button>
+                        </div>
+                      ))}
+                      {team.members.length === 0 && (
+                        <p className="text-slate-500 text-sm">Henüz üye yok</p>
+                      )}
+                      {addMemberTeamId === team.id ? (
+                        <div className="flex gap-2 mt-2">
+                          <input
+                            type="text"
+                            value={addMemberName}
+                            onChange={(e) => setAddMemberName(e.target.value)}
+                            className="flex-1 px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                            placeholder="İsim"
+                          />
+                          <input
+                            type="email"
+                            value={addMemberEmail}
+                            onChange={(e) => setAddMemberEmail(e.target.value)}
+                            className="flex-1 px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                            placeholder="email@superead.com"
+                          />
+                          <button
+                            onClick={() => handleAddMember(team.id)}
+                            className="px-3 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition"
+                          >
+                            Ekle
+                          </button>
+                          <button
+                            onClick={() => setAddMemberTeamId(null)}
+                            className="px-3 py-2 bg-slate-600 text-white rounded-lg text-sm hover:bg-slate-700 transition"
+                          >
+                            İptal
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setAddMemberTeamId(team.id);
+                            setAddMemberName("");
+                            setAddMemberEmail("");
+                          }}
+                          className="text-purple-400 hover:text-purple-300 text-sm mt-1"
+                        >
+                          + Üye Ekle
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

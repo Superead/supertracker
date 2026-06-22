@@ -27,6 +27,7 @@ async function main() {
     prisma.team.create({ data: { name: "Ecem-Melike", color: "#00b894" } }),
     prisma.team.create({ data: { name: "Mihri-Esra", color: "#0984e3" } }),
     prisma.team.create({ data: { name: "Aleyna-Aybüke", color: "#fdcb6e" } }),
+    prisma.team.create({ data: { name: "Şeyma-İrem", color: "#e84393" } }),
   ]);
 
   const agents = [
@@ -40,6 +41,8 @@ async function main() {
     { name: "Esra", email: "esra@superead.com", teamIdx: 3 },
     { name: "Aleyna", email: "aleyna@superead.com", teamIdx: 4 },
     { name: "Aybüke", email: "aybuke@superead.com", teamIdx: 4 },
+    { name: "Şeyma", email: "seyma@superead.com", teamIdx: 5 },
+    { name: "İrem K.", email: "iremk@superead.com", teamIdx: 5 },
   ];
 
   for (const a of agents) {
