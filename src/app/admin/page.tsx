@@ -76,7 +76,7 @@ interface RefundData {
   createdBy: { name: string };
 }
 
-type Tab = "overview" | "refunds" | "deletions" | "audit" | "goals" | "bonuses" | "products" | "teams";
+type Tab = "overview" | "refunds" | "deletions" | "audit" | "goals" | "bonuses" | "products" | "teams" | "ledger";
 
 function formatTL(n: number) {
   return new Intl.NumberFormat("tr-TR").format(n);
@@ -148,6 +148,10 @@ export default function AdminPage() {
   const [resetPwUserId, setResetPwUserId] = useState<string | null>(null);
   const [resetPwValue, setResetPwValue] = useState("satis123");
 
+  // Ledger
+  const [ledgerDate, setLedgerDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [ledgerSales, setLedgerSales] = useState<MonthSale[]>([]);
+
   // Refunds
   const [refunds, setRefunds] = useState<RefundData[]>([]);
   const [refundAmount, setRefundAmount] = useState("");
@@ -187,6 +191,15 @@ export default function AdminPage() {
   useEffect(() => {
     if (user) loadData();
   }, [user, loadData]);
+
+  const loadLedger = useCallback(async () => {
+    const res = await fetch(`/api/sales?date=${ledgerDate}`);
+    if (res.ok) setLedgerSales(await res.json());
+  }, [ledgerDate]);
+
+  useEffect(() => {
+    if (user && tab === "ledger") loadLedger();
+  }, [user, tab, loadLedger]);
 
   async function handleDeletionAction(requestId: string, action: "approve" | "reject") {
     await fetch("/api/admin/deletion-requests", {
@@ -450,6 +463,7 @@ export default function AdminPage() {
     { key: "bonuses", label: "Primler", icon: "💰" },
     { key: "products", label: "Ürünler & Paketler", icon: "📦" },
     { key: "teams", label: "Takımlar", icon: "👥" },
+    { key: "ledger", label: "Muhasebe", icon: "📒" },
   ];
 
   return (
@@ -1201,6 +1215,116 @@ export default function AdminPage() {
                 )}
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Ledger Tab */}
+        {tab === "ledger" && (
+          <div className="space-y-4">
+            {/* Date Picker */}
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    const d = new Date(ledgerDate);
+                    d.setDate(d.getDate() - 1);
+                    setLedgerDate(d.toISOString().split("T")[0]);
+                  }}
+                  className="w-10 h-10 flex items-center justify-center bg-white/10 rounded-xl text-white hover:bg-white/20 transition text-lg"
+                >
+                  ◀
+                </button>
+                <input
+                  type="date"
+                  value={ledgerDate}
+                  onChange={(e) => setLedgerDate(e.target.value)}
+                  className="px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                />
+                <button
+                  onClick={() => {
+                    const d = new Date(ledgerDate);
+                    d.setDate(d.getDate() + 1);
+                    setLedgerDate(d.toISOString().split("T")[0]);
+                  }}
+                  className="w-10 h-10 flex items-center justify-center bg-white/10 rounded-xl text-white hover:bg-white/20 transition text-lg"
+                >
+                  ▶
+                </button>
+                <button
+                  onClick={() => setLedgerDate(new Date().toISOString().split("T")[0])}
+                  className="px-4 py-2 bg-purple-600/30 text-purple-300 rounded-xl text-sm hover:bg-purple-600/50 transition"
+                >
+                  Bugün
+                </button>
+              </div>
+              <div className="text-right">
+                <p className="text-sm text-slate-400">
+                  {new Date(ledgerDate + "T12:00:00").toLocaleDateString("tr-TR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+                </p>
+                <p className="text-lg font-bold text-white">
+                  {ledgerSales.length} satış — {formatTL(ledgerSales.reduce((s, sale) => s + sale.totalPrice, 0))} ₺
+                </p>
+              </div>
+            </div>
+
+            {/* Sales List */}
+            {ledgerSales.length === 0 ? (
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-10 text-center">
+                <p className="text-slate-400 text-lg">Bu tarihte satış bulunmuyor</p>
+              </div>
+            ) : (
+              <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+                {/* Header */}
+                <div className="grid grid-cols-12 gap-2 px-4 py-3 bg-white/5 border-b border-white/10 text-xs text-slate-400 uppercase tracking-wide font-medium">
+                  <div className="col-span-1">#</div>
+                  <div className="col-span-1">Saat</div>
+                  <div className="col-span-2">Satışçı</div>
+                  <div className="col-span-2">Ekip</div>
+                  <div className="col-span-1">Tür</div>
+                  <div className="col-span-3">Detay</div>
+                  <div className="col-span-2 text-right">Tutar</div>
+                </div>
+                {/* Rows */}
+                {[...ledgerSales].reverse().map((sale, i) => (
+                  <div
+                    key={sale.id}
+                    className={`grid grid-cols-12 gap-2 px-4 py-3 items-center border-b border-white/5 ${i % 2 === 0 ? "bg-transparent" : "bg-white/[0.02]"} hover:bg-white/5 transition`}
+                  >
+                    <div className="col-span-1 text-slate-500 text-sm font-mono">{i + 1}</div>
+                    <div className="col-span-1 text-white text-sm font-mono">
+                      {new Date(sale.createdAt).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-white text-sm font-medium">{sale.user.name}</span>
+                    </div>
+                    <div className="col-span-2 flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: sale.user.team?.color || "#666" }} />
+                      <span className="text-slate-300 text-sm">{sale.user.team?.name || "—"}</span>
+                    </div>
+                    <div className="col-span-1">
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${sale.packageType === "instructor" ? "bg-amber-500/20 text-amber-300" : "bg-sky-500/20 text-sky-300"}`}>
+                        {TYPE_LABELS[sale.packageType] || sale.packageType}
+                      </span>
+                    </div>
+                    <div className="col-span-3 text-sm text-slate-400">
+                      {sale.package
+                        ? `${sale.package.product.name} — ${sale.package.name}`
+                        : `${sale.personCount} Kişi • ${DURATION_LABELS[sale.duration] || sale.duration}`}
+                    </div>
+                    <div className="col-span-2 text-right">
+                      <span className="text-green-400 font-bold text-sm">{formatTL(sale.totalPrice)} ₺</span>
+                    </div>
+                  </div>
+                ))}
+                {/* Total Row */}
+                <div className="grid grid-cols-12 gap-2 px-4 py-4 bg-white/5 border-t border-white/10">
+                  <div className="col-span-10 text-right text-white font-bold">Toplam:</div>
+                  <div className="col-span-2 text-right">
+                    <span className="text-green-400 font-bold text-lg">{formatTL(ledgerSales.reduce((s, sale) => s + sale.totalPrice, 0))} ₺</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
