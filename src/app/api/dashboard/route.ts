@@ -118,8 +118,8 @@ export async function GET(request: NextRequest) {
       todaySaleCount,
       monthSaleCount,
       dailyBonus,
-      dailyGoal: teamDailyGoal?.target || globalDailyGoal?.target || 0,
-      monthlyGoal: teamMonthlyGoal?.target || globalMonthlyGoal?.target || 0,
+      dailyGoal: teamDailyGoal?.target || (globalDailyGoal?.target ? Math.round(globalDailyGoal.target / teams.length) : 0),
+      monthlyGoal: teamMonthlyGoal?.target || (globalMonthlyGoal?.target ? Math.round(globalMonthlyGoal.target / teams.length) : 0),
     };
   });
 
