@@ -49,15 +49,29 @@ export async function POST(request: NextRequest) {
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await request.json();
-  const { personCount, duration, packageType, unitPrice, discount, discountReason, customerType, customerNote } = body;
+  const { personCount, duration, packageType, unitPrice, discount, discountReason, customerType, customerNote, isBackdated, backdatedNote } = body;
 
   if (!unitPrice || unitPrice <= 0) {
     return Response.json({ error: "Fiyat girilmelidir" }, { status: 400 });
   }
 
+  if (isBackdated && (!backdatedNote || backdatedNote.trim().length < 3)) {
+    return Response.json({ error: "Düne satış girişi için açıklama zorunludur" }, { status: 400 });
+  }
+
   const price = unitPrice;
   const discountAmount = discount || 0;
   const totalPrice = price - discountAmount;
+
+  const TZ = "Europe/Istanbul";
+  const nowTR = new Date(new Date().toLocaleString("en-US", { timeZone: TZ }));
+  let createdAt: Date | undefined;
+  if (isBackdated) {
+    const yesterday = new Date(nowTR);
+    yesterday.setDate(yesterday.getDate() - 1);
+    yesterday.setHours(23, 59, 0, 0);
+    createdAt = yesterday;
+  }
 
   const sale = await prisma.sale.create({
     data: {
@@ -71,6 +85,10 @@ export async function POST(request: NextRequest) {
       discountReason: discountReason || null,
       customerType: customerType || "new",
       customerNote: customerNote || null,
+      isBackdated: isBackdated || false,
+      backdatedNote: isBackdated ? backdatedNote : null,
+      backdateApproved: false,
+      ...(createdAt ? { createdAt } : {}),
     },
     include: {
       user: { select: { id: true, name: true, team: { select: { name: true, color: true } } } },

@@ -161,18 +161,22 @@ export default function AdminPage() {
   const [refundReason, setRefundReason] = useState("");
   const [refundUserId, setRefundUserId] = useState("");
 
+  // Backdate requests
+  const [backdateRequests, setBackdateRequests] = useState<BackdateSale[]>([]);
+
   // Filters for sales table
   const [filterAgent, setFilterAgent] = useState("");
   const [filterType, setFilterType] = useState("");
 
   const loadData = useCallback(async () => {
-    const [delRes, auditRes, dashRes, prodRes, teamRes, refRes] = await Promise.all([
+    const [delRes, auditRes, dashRes, prodRes, teamRes, refRes, bdRes] = await Promise.all([
       fetch("/api/admin/deletion-requests"),
       fetch("/api/admin/audit-logs"),
       fetch(`/api/dashboard?month=${selectedMonth}`),
       fetch("/api/admin/products"),
       fetch("/api/admin/teams"),
       fetch(`/api/admin/refunds?month=${selectedMonth}`),
+      fetch("/api/admin/backdate-requests"),
     ]);
     if (delRes.ok) setDeletionRequests(await delRes.json());
     if (auditRes.ok) setAuditLogs(await auditRes.json());
@@ -180,6 +184,7 @@ export default function AdminPage() {
     if (prodRes.ok) setProducts(await prodRes.json());
     if (teamRes.ok) setTeams(await teamRes.json());
     if (refRes.ok) setRefunds(await refRes.json());
+    if (bdRes.ok) setBackdateRequests(await bdRes.json());
   }, [selectedMonth]);
 
   useEffect(() => {
@@ -265,6 +270,15 @@ export default function AdminPage() {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id }),
+    });
+    loadData();
+  }
+
+  async function handleBackdateAction(saleId: string, action: "approve" | "reject") {
+    await fetch("/api/admin/backdate-requests", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ saleId, action }),
     });
     loadData();
   }
@@ -485,7 +499,7 @@ export default function AdminPage() {
   const tabs: { key: Tab; label: string; icon: string; badge?: number }[] = [
     { key: "overview", label: "Genel Bakış", icon: "📊" },
     { key: "refunds", label: "İadeler", icon: "↩️", badge: refunds.length },
-    { key: "deletions", label: "Silme Talepleri", icon: "🗑️", badge: deletionRequests.length },
+    { key: "deletions", label: "Silme Talepleri", icon: "🗑️", badge: deletionRequests.length + backdateRequests.filter(s => !s.backdateApproved && !s.isDeleted).length },
     { key: "audit", label: "İşlem Geçmişi", icon: "📋" },
     { key: "goals", label: "Hedefler", icon: "🎯" },
     { key: "bonuses", label: "Primler", icon: "💰" },
@@ -849,46 +863,93 @@ export default function AdminPage() {
 
         {/* Deletion Requests Tab */}
         {tab === "deletions" && (
-          <div className="space-y-3">
-            {deletionRequests.length === 0 ? (
-              <div className="bg-white/5 rounded-2xl p-8 text-center text-slate-400">
-                Bekleyen silme talebi yok ✅
-              </div>
-            ) : (
-              deletionRequests.map((req) => (
-                <div key={req.id} className="bg-white/5 border border-white/10 rounded-xl p-4">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-white font-medium">
-                        {req.sale.user.name} — {req.sale.package ? req.sale.package.product.name : `${req.sale.personCount} Kişi • ${DURATION_LABELS[req.sale.duration] || req.sale.duration}`}
-                      </p>
-                      <p className="text-sm text-slate-400">
-                        {req.sale.package ? req.sale.package.name : (TYPE_LABELS[req.sale.packageType] || req.sale.packageType)} • {formatTL(req.sale.totalPrice)} ₺
-                      </p>
-                      <p className="text-sm text-yellow-300 mt-1">Sebep: {req.reason}</p>
-                      <p className="text-xs text-slate-500 mt-1">
-                        Talep eden: {req.requestedBy.name} •{" "}
-                        {new Date(req.createdAt).toLocaleString("tr-TR")}
-                      </p>
+          <div className="space-y-6">
+            {/* Backdate Requests */}
+            {backdateRequests.filter(s => !s.backdateApproved && !s.isDeleted).length > 0 && (
+              <div>
+                <h3 className="text-lg font-bold text-amber-300 mb-3">📅 Düne Satış Girişi Talepleri</h3>
+                <div className="space-y-3">
+                  {backdateRequests.filter(s => !s.backdateApproved && !s.isDeleted).map((sale) => (
+                    <div key={sale.id} className="bg-amber-900/10 border border-amber-500/20 rounded-xl p-4">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="text-white font-medium">
+                            {sale.user.name} — {sale.package ? sale.package.product.name : `${sale.personCount} Kişi • ${DURATION_LABELS[sale.duration] || sale.duration}`}
+                          </p>
+                          <p className="text-sm text-slate-400">
+                            {sale.package ? sale.package.name : (TYPE_LABELS[sale.packageType] || sale.packageType)} • {formatTL(sale.totalPrice)} ₺
+                          </p>
+                          <p className="text-sm text-amber-300 mt-1">📝 Not: {sale.backdatedNote}</p>
+                          <p className="text-xs text-slate-500 mt-1">
+                            Satış tarihi: {new Date(sale.createdAt).toLocaleString("tr-TR")}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleBackdateAction(sale.id, "approve")}
+                            className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition"
+                          >
+                            ✓ Onayla
+                          </button>
+                          <button
+                            onClick={() => handleBackdateAction(sale.id, "reject")}
+                            className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 transition"
+                          >
+                            ✕ Reddet
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleDeletionAction(req.id, "approve")}
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition"
-                      >
-                        ✓ Onayla
-                      </button>
-                      <button
-                        onClick={() => handleDeletionAction(req.id, "reject")}
-                        className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 transition"
-                      >
-                        ✕ Reddet
-                      </button>
-                    </div>
-                  </div>
+                  ))}
                 </div>
-              ))
+              </div>
             )}
+
+            {/* Deletion Requests */}
+            <div>
+              <h3 className="text-lg font-bold text-white mb-3">🗑 Silme Talepleri</h3>
+              {deletionRequests.length === 0 ? (
+                <div className="bg-white/5 rounded-2xl p-8 text-center text-slate-400">
+                  Bekleyen silme talebi yok ✅
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {deletionRequests.map((req) => (
+                    <div key={req.id} className="bg-white/5 border border-white/10 rounded-xl p-4">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="text-white font-medium">
+                            {req.sale.user.name} — {req.sale.package ? req.sale.package.product.name : `${req.sale.personCount} Kişi • ${DURATION_LABELS[req.sale.duration] || req.sale.duration}`}
+                          </p>
+                          <p className="text-sm text-slate-400">
+                            {req.sale.package ? req.sale.package.name : (TYPE_LABELS[req.sale.packageType] || req.sale.packageType)} • {formatTL(req.sale.totalPrice)} ₺
+                          </p>
+                          <p className="text-sm text-yellow-300 mt-1">Sebep: {req.reason}</p>
+                          <p className="text-xs text-slate-500 mt-1">
+                            Talep eden: {req.requestedBy.name} •{" "}
+                            {new Date(req.createdAt).toLocaleString("tr-TR")}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleDeletionAction(req.id, "approve")}
+                            className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition"
+                          >
+                            ✓ Onayla
+                          </button>
+                          <button
+                            onClick={() => handleDeletionAction(req.id, "reject")}
+                            className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 transition"
+                          >
+                            ✕ Reddet
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -1795,4 +1856,18 @@ interface BonusTierRaw {
   id: string;
   minAmount: number;
   bonusAmount: number;
+}
+
+interface BackdateSale {
+  id: string;
+  totalPrice: number;
+  personCount: number;
+  duration: string;
+  packageType: string;
+  backdatedNote: string;
+  backdateApproved: boolean;
+  isDeleted: boolean;
+  createdAt: string;
+  user: { name: string; team: { name: string; color: string } | null };
+  package: { name: string; product: { name: string } } | null;
 }

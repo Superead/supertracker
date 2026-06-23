@@ -79,6 +79,10 @@ model Sale {
   packageType   String    @default("individual")
   isDeleted     Boolean   @default(false)
   deletedAt     DateTime?
+  isBackdated       Boolean   @default(false)
+  backdatedNote     String?
+  backdateApproved  Boolean   @default(false)
+  backdateApprovedBy String?
   userId        String
   user          User      @relation(fields: [userId], references: [id])
   packageId     String?

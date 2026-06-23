@@ -71,6 +71,10 @@ export default function AgentPage() {
   const [customerType, setCustomerType] = useState("new");
   const [customerNote, setCustomerNote] = useState("");
 
+  // Backdate (düne satış)
+  const [isBackdated, setIsBackdated] = useState(false);
+  const [backdatedNote, setBackdatedNote] = useState("");
+
   // Edit state
   const [editingSaleId, setEditingSaleId] = useState<string | null>(null);
   const [editPrice, setEditPrice] = useState("");
@@ -134,6 +138,8 @@ export default function AgentPage() {
         discountReason: discountReason || undefined,
         customerType,
         customerNote: customerNote || undefined,
+        isBackdated: isBackdated || undefined,
+        backdatedNote: isBackdated ? backdatedNote : undefined,
       }),
     });
     if (res.ok) {
@@ -146,6 +152,14 @@ export default function AgentPage() {
       setDiscount(0);
       setDiscountReason("");
       setCustomerNote("");
+      setIsBackdated(false);
+      setBackdatedNote("");
+      if (isBackdated) {
+        alert("Düne ait satış kaydedildi. Admin onayı bekleniyor.");
+      }
+    } else {
+      const err = await res.json();
+      alert(err.error || "Hata oluştu");
     }
     setLoading(false);
   }
@@ -430,6 +444,37 @@ export default function AgentPage() {
         {/* Sale Form */}
         {showForm && (
           <form onSubmit={handleSubmit} className="bg-white/5 backdrop-blur border border-white/10 rounded-2xl p-6 mb-6 space-y-4">
+            {/* Düne Satış Toggle */}
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setIsBackdated(!isBackdated)}
+                className={`px-4 py-2 rounded-xl text-sm font-medium transition ${
+                  isBackdated
+                    ? "bg-amber-600/30 text-amber-300 border border-amber-500/50"
+                    : "bg-white/10 text-slate-400 border border-white/10 hover:bg-white/20"
+                }`}
+              >
+                📅 {isBackdated ? "Düne Satış Girişi" : "Bugüne Satış"}
+              </button>
+              {isBackdated && (
+                <span className="text-xs text-amber-400">⚠️ Admin onayı gerekecek</span>
+              )}
+            </div>
+            {isBackdated && (
+              <div>
+                <label className="block text-amber-300 text-sm font-medium mb-2">Açıklama (zorunlu) — Neden düne giriliyor?</label>
+                <input
+                  type="text"
+                  value={backdatedNote}
+                  onChange={(e) => setBackdatedNote(e.target.value)}
+                  placeholder="Örn: Müşteri ödemeyi dün yaptı, bugün bildirildi"
+                  className="w-full px-4 py-3 bg-amber-900/20 border border-amber-500/30 rounded-xl text-white placeholder-amber-600/50 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  required
+                />
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-4">
               {/* Kişi Sayısı */}
               <div>
