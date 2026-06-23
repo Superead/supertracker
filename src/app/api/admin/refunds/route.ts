@@ -8,7 +8,8 @@ export async function GET(request: NextRequest) {
 
   const monthParam = request.nextUrl.searchParams.get("month");
   let targetYear: number, targetMonth: number;
-  const now = new Date();
+  const TZ = "Europe/Istanbul";
+  const now = new Date(new Date().toLocaleString("en-US", { timeZone: TZ }));
 
   if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
     const [y, m] = monthParam.split("-").map(Number);
@@ -19,8 +20,8 @@ export async function GET(request: NextRequest) {
     targetMonth = now.getMonth();
   }
 
-  const monthStart = new Date(targetYear, targetMonth, 1);
-  const monthEnd = new Date(targetYear, targetMonth + 1, 0, 23, 59, 59);
+  const monthStart = new Date(new Date(targetYear, targetMonth, 1).toLocaleString("en-US", { timeZone: TZ }));
+  const monthEnd = new Date(new Date(targetYear, targetMonth + 1, 0, 23, 59, 59).toLocaleString("en-US", { timeZone: TZ }));
 
   const refunds = await prisma.refund.findMany({
     where: { createdAt: { gte: monthStart, lte: monthEnd } },

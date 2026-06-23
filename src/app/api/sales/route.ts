@@ -14,14 +14,15 @@ export async function GET(request: NextRequest) {
 
   const where: Record<string, unknown> = { isDeleted: false };
 
+  const TZ = "Europe/Istanbul";
   if (date) {
-    const start = new Date(date + "T00:00:00");
-    const end = new Date(date + "T23:59:59");
+    const start = new Date(new Date(date + "T00:00:00").toLocaleString("en-US", { timeZone: TZ }));
+    const end = new Date(new Date(date + "T23:59:59").toLocaleString("en-US", { timeZone: TZ }));
     where.createdAt = { gte: start, lte: end };
   } else if (month) {
     const [y, m] = month.split("-").map(Number);
-    const start = new Date(y, m - 1, 1);
-    const end = new Date(y, m, 0, 23, 59, 59);
+    const start = new Date(new Date(y, m - 1, 1).toLocaleString("en-US", { timeZone: TZ }));
+    const end = new Date(new Date(y, m, 0, 23, 59, 59).toLocaleString("en-US", { timeZone: TZ }));
     where.createdAt = { gte: start, lte: end };
   }
 

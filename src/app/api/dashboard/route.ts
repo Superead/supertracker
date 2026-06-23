@@ -6,7 +6,8 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   const monthParam = request.nextUrl.searchParams.get("month");
 
-  const now = new Date();
+  const TZ = "Europe/Istanbul";
+  const nowTR = new Date(new Date().toLocaleString("en-US", { timeZone: TZ }));
   let targetYear: number, targetMonth: number;
 
   if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
@@ -14,18 +15,18 @@ export async function GET(request: NextRequest) {
     targetYear = y;
     targetMonth = m - 1;
   } else {
-    targetYear = now.getFullYear();
-    targetMonth = now.getMonth();
+    targetYear = nowTR.getFullYear();
+    targetMonth = nowTR.getMonth();
   }
 
-  const isCurrentMonth = targetYear === now.getFullYear() && targetMonth === now.getMonth();
+  const isCurrentMonth = targetYear === nowTR.getFullYear() && targetMonth === nowTR.getMonth();
 
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-  const monthStart = new Date(targetYear, targetMonth, 1);
-  const monthEnd = new Date(targetYear, targetMonth + 1, 0, 23, 59, 59);
+  const todayStart = new Date(new Date(nowTR.getFullYear(), nowTR.getMonth(), nowTR.getDate()).toLocaleString("en-US", { timeZone: TZ }));
+  const todayEnd = new Date(new Date(nowTR.getFullYear(), nowTR.getMonth(), nowTR.getDate(), 23, 59, 59).toLocaleString("en-US", { timeZone: TZ }));
+  const monthStart = new Date(new Date(targetYear, targetMonth, 1).toLocaleString("en-US", { timeZone: TZ }));
+  const monthEnd = new Date(new Date(targetYear, targetMonth + 1, 0, 23, 59, 59).toLocaleString("en-US", { timeZone: TZ }));
 
-  const todayPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const todayPeriod = `${nowTR.getFullYear()}-${String(nowTR.getMonth() + 1).padStart(2, "0")}-${String(nowTR.getDate()).padStart(2, "0")}`;
   const monthPeriod = `${targetYear}-${String(targetMonth + 1).padStart(2, "0")}`;
 
   const teams = await prisma.team.findMany({
@@ -83,7 +84,7 @@ export async function GET(request: NextRequest) {
   const announcements = await prisma.announcement.findMany({
     where: {
       isActive: true,
-      OR: [{ expiresAt: null }, { expiresAt: { gte: now } }],
+      OR: [{ expiresAt: null }, { expiresAt: { gte: nowTR } }],
     },
     orderBy: { createdAt: "desc" },
     take: 5,
