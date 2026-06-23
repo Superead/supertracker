@@ -112,6 +112,9 @@ export default function AdminPage() {
   // Bonus form
   const [bonusMin, setBonusMin] = useState("");
   const [bonusAmount, setBonusAmount] = useState("");
+  const [editingTier, setEditingTier] = useState<string | null>(null);
+  const [editTierMin, setEditTierMin] = useState("");
+  const [editTierAmount, setEditTierAmount] = useState("");
 
   // Products
   const [products, setProducts] = useState<ProductData[]>([]);
@@ -239,6 +242,31 @@ export default function AdminPage() {
     });
     setBonusMin("");
     setBonusAmount("");
+    loadData();
+  }
+
+  async function handleUpdateTier(id: string) {
+    await fetch("/api/admin/bonus-tiers", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id,
+        minAmount: Number(editTierMin),
+        bonusAmount: Number(editTierAmount),
+      }),
+    });
+    setEditingTier(null);
+    loadData();
+  }
+
+  async function handleDeleteTier(id: string) {
+    if (!confirm("Bu prim basamağını silmek istediğinize emin misiniz?")) return;
+    await fetch("/api/admin/bonus-tiers", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    loadData();
   }
 
   async function handleCreateProduct(e: React.FormEvent) {
@@ -973,10 +1001,65 @@ export default function AdminPage() {
               <h3 className="text-lg font-bold text-white mb-4">Mevcut Prim Basamakları</h3>
               {(dashData as Record<string, unknown>)?.bonusTiers ? (
                 <div className="space-y-2 mb-6">
-                  {((dashData as Record<string, unknown>).bonusTiers as BonusTierRaw[]).map((tier: BonusTierRaw, i: number) => (
-                    <div key={i} className="flex justify-between p-3 bg-white/5 rounded-xl">
-                      <span className="text-white">{formatTL(tier.minAmount)} ₺ satış</span>
-                      <span className="text-green-400 font-bold">{formatTL(tier.bonusAmount)} ₺ prim</span>
+                  {((dashData as Record<string, unknown>).bonusTiers as BonusTierRaw[]).map((tier: BonusTierRaw) => (
+                    <div key={tier.id} className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+                      {editingTier === tier.id ? (
+                        <div className="flex items-center gap-3 w-full">
+                          <div className="flex-1">
+                            <label className="text-xs text-slate-400">Min. Satış (₺)</label>
+                            <input
+                              type="number"
+                              value={editTierMin}
+                              onChange={(e) => setEditTierMin(e.target.value)}
+                              className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <label className="text-xs text-slate-400">Prim (₺)</label>
+                            <input
+                              type="number"
+                              value={editTierAmount}
+                              onChange={(e) => setEditTierAmount(e.target.value)}
+                              className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                            />
+                          </div>
+                          <button
+                            onClick={() => handleUpdateTier(tier.id)}
+                            className="px-3 py-2 mt-4 bg-green-600/30 text-green-300 rounded-lg text-sm hover:bg-green-600/50 transition"
+                          >
+                            ✓
+                          </button>
+                          <button
+                            onClick={() => setEditingTier(null)}
+                            className="px-3 py-2 mt-4 bg-white/10 text-slate-300 rounded-lg text-sm hover:bg-white/20 transition"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <span className="text-white">{formatTL(tier.minAmount)} ₺ satış</span>
+                          <div className="flex items-center gap-3">
+                            <span className="text-green-400 font-bold">{formatTL(tier.bonusAmount)} ₺ prim</span>
+                            <button
+                              onClick={() => {
+                                setEditingTier(tier.id);
+                                setEditTierMin(String(tier.minAmount));
+                                setEditTierAmount(String(tier.bonusAmount));
+                              }}
+                              className="px-2 py-1 bg-white/10 text-slate-300 rounded-lg text-xs hover:bg-white/20 transition"
+                            >
+                              ✏️
+                            </button>
+                            <button
+                              onClick={() => handleDeleteTier(tier.id)}
+                              className="px-2 py-1 bg-red-600/20 text-red-400 rounded-lg text-xs hover:bg-red-600/40 transition"
+                            >
+                              🗑
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1709,6 +1792,7 @@ interface TeamStatRaw {
 }
 
 interface BonusTierRaw {
+  id: string;
   minAmount: number;
   bonusAmount: number;
 }

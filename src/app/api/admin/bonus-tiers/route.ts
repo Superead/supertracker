@@ -22,3 +22,35 @@ export async function POST(request: NextRequest) {
   });
   return Response.json(tier, { status: 201 });
 }
+
+export async function PUT(request: NextRequest) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "admin") {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { id, minAmount, bonusAmount } = await request.json();
+  if (!id) return Response.json({ error: "ID gerekli" }, { status: 400 });
+
+  const tier = await prisma.bonusTier.update({
+    where: { id },
+    data: { minAmount, bonusAmount },
+  });
+  return Response.json(tier);
+}
+
+export async function DELETE(request: NextRequest) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "admin") {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { id } = await request.json();
+  if (!id) return Response.json({ error: "ID gerekli" }, { status: 400 });
+
+  await prisma.bonusTier.update({
+    where: { id },
+    data: { isActive: false },
+  });
+  return Response.json({ success: true });
+}
