@@ -14,6 +14,7 @@ model User {
   password      String
   role          String    @default("agent")
   avatar        String?
+  birthday      String?
   isActive      Boolean   @default(true)
   teamId        String?
   team          Team?     @relation(fields: [teamId], references: [id])

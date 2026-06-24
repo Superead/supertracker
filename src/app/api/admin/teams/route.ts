@@ -14,7 +14,7 @@ export async function GET() {
     include: {
       members: {
         where: { isActive: true },
-        select: { id: true, name: true, email: true },
+        select: { id: true, name: true, email: true, birthday: true },
       },
     },
     orderBy: { createdAt: "asc" },
@@ -126,6 +126,16 @@ export async function PUT(request: NextRequest) {
       data: { password: hashSync(newPassword, 10) },
     });
     await createAuditLog(user.id, "update", "user", userId, null, { action: "reset-password" });
+    return Response.json({ success: true });
+  }
+
+  if (action === "set-birthday") {
+    const { userId, birthday } = body;
+    await prisma.user.update({
+      where: { id: userId },
+      data: { birthday: birthday || null },
+    });
+    await createAuditLog(user.id, "update", "user", userId, null, { action: "set-birthday", birthday });
     return Response.json({ success: true });
   }
 

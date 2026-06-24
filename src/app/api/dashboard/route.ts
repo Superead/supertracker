@@ -160,8 +160,16 @@ export async function GET(request: NextRequest) {
     return { ...ts, refundTotal: teamRefunds, netMonthTotal: ts.monthTotal - teamRefunds };
   });
 
+  const todayMMDD = `${String(nowTR.getMonth() + 1).padStart(2, "0")}-${String(nowTR.getDate()).padStart(2, "0")}`;
+  const allUsers = await prisma.user.findMany({
+    where: { isActive: true, birthday: { not: null } },
+    select: { name: true, birthday: true, team: { select: { name: true, color: true } } },
+  });
+  const birthdayUsers = allUsers.filter(u => u.birthday && u.birthday.slice(5) === todayMMDD);
+
   return Response.json({
     teamStats: teamStatsWithRefunds,
+    birthdayUsers,
     todaySales: todaySales.slice(0, 20),
     monthSales: monthSales.slice(0, 100),
     overallTodayTotal,

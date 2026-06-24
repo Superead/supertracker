@@ -60,6 +60,7 @@ interface DashboardData {
   globalMonthlyGoal: number;
   bonusTiers: BonusTier[];
   announcements: { title: string; message: string; type: string }[];
+  birthdayUsers: { name: string; team: { name: string; color: string } | null }[];
 }
 
 function formatTL(n: number) {
@@ -294,6 +295,28 @@ export default function DashboardPage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-6">
+        {/* Birthday Celebration */}
+        {data.birthdayUsers && data.birthdayUsers.length > 0 && (
+          <div className="mb-6 bg-gradient-to-r from-pink-600/20 via-yellow-500/20 to-pink-600/20 border border-pink-500/30 rounded-2xl p-5 text-center animate-pulse">
+            <div className="text-4xl mb-2">🎂🎉🎈</div>
+            <div className="text-xl font-bold text-pink-300">
+              İyi ki doğdun{data.birthdayUsers.length > 1 ? "uz" : ""}!
+            </div>
+            <div className="mt-2 flex flex-wrap justify-center gap-3">
+              {data.birthdayUsers.map((u, i) => (
+                <span key={i} className="inline-flex items-center gap-2 px-4 py-2 bg-pink-500/20 border border-pink-400/30 rounded-full">
+                  <span className="text-2xl">🎂</span>
+                  <span className="text-lg font-bold text-white">{u.name}</span>
+                  {u.team && (
+                    <span className="text-sm text-pink-300">({u.team.name})</span>
+                  )}
+                </span>
+              ))}
+            </div>
+            <p className="mt-2 text-pink-300/70 text-sm">Doğum günün kutlu olsun! 🥳🎊</p>
+          </div>
+        )}
+
         {/* Overall Stats */}
         <div className="grid grid-cols-4 gap-4 mb-8">
           <div className="bg-gradient-to-br from-purple-600/20 to-pink-600/20 border border-purple-500/30 rounded-2xl p-5 text-center">

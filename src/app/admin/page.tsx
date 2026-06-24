@@ -43,7 +43,7 @@ interface TeamData {
   name: string;
   color: string;
   isActive: boolean;
-  members: { id: string; name: string; email: string }[];
+  members: { id: string; name: string; email: string; birthday: string | null }[];
 }
 
 interface ProductData {
@@ -1265,11 +1265,29 @@ export default function AdminPage() {
                       {team.members.map((m) => (
                         <div key={m.id} className="bg-white/5 rounded-lg px-3 py-2">
                           <div className="flex items-center justify-between">
-                            <div>
+                            <div className="flex items-center gap-2">
                               <span className="text-white text-sm font-medium">{m.name}</span>
-                              <span className="text-slate-500 text-xs ml-2">{m.email}</span>
+                              <span className="text-slate-500 text-xs">{m.email}</span>
+                              {m.birthday ? (
+                                <span className="text-pink-400 text-xs">🎂 {m.birthday.slice(8)}/{m.birthday.slice(5, 7)}</span>
+                              ) : null}
                             </div>
                             <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => {
+                                  const bd = prompt("Doğum günü (YYYY-MM-DD):", m.birthday || "");
+                                  if (bd !== null) {
+                                    fetch("/api/admin/teams", {
+                                      method: "PUT",
+                                      headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({ action: "set-birthday", userId: m.id, birthday: bd || null }),
+                                    }).then(() => loadData());
+                                  }
+                                }}
+                                className="text-pink-400 hover:text-pink-300 text-xs"
+                              >
+                                🎂
+                              </button>
                               <button
                                 onClick={() => { setResetPwUserId(resetPwUserId === m.id ? null : m.id); setResetPwValue("satis123"); }}
                                 className="text-yellow-400 hover:text-yellow-300 text-xs"
