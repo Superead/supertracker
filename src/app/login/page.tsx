@@ -30,6 +30,8 @@ export default function LoginPage() {
 
     if (data.user.role === "admin") {
       router.push("/admin");
+    } else if (data.user.role === "educator" || data.user.isEducator) {
+      router.push("/egitim");
     } else {
       router.push("/agent");
     }
@@ -83,8 +85,8 @@ export default function LoginPage() {
           </button>
 
           <div className="mt-6 text-center">
-            <a href="/dashboard" className="text-purple-300 hover:text-white text-sm transition-colors">
-              📊 Canlı Dashboard&apos;u Görüntüle
+            <a href="/egitmen-kayit" className="block text-slate-400 hover:text-purple-300 text-sm transition-colors">
+              📚 Eğitmen misiniz? Kayıt olun
             </a>
           </div>
         </form>

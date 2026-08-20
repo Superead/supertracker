@@ -220,6 +220,10 @@ export default function DashboardPage() {
 
   const loadData = useCallback(async () => {
     const res = await fetch("/api/dashboard");
+    if (res.status === 401 || res.status === 403) {
+      window.location.href = "/login";
+      return;
+    }
     if (res.ok) {
       const d = await res.json();
       setData(d);

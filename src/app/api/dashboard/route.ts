@@ -1,13 +1,26 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
+  const user = await getCurrentUser();
+  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  if (user.role !== "admin") {
+    if (user.role === "educator") return Response.json({ error: "Forbidden" }, { status: 403 });
+    const educatorCheck = await prisma.educator.findUnique({ where: { userId: user.id }, select: { id: true } });
+    if (educatorCheck) return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const monthParam = request.nextUrl.searchParams.get("month");
 
-  const TZ = "Europe/Istanbul";
-  const nowTR = new Date(new Date().toLocaleString("en-US", { timeZone: TZ }));
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const nowTR = new Date(Date.now() + 3 * 3600000);
+  const trYear = nowTR.getUTCFullYear();
+  const trMonth = nowTR.getUTCMonth();
+  const trDay = nowTR.getUTCDate();
   let targetYear: number, targetMonth: number;
 
   if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
@@ -15,19 +28,20 @@ export async function GET(request: NextRequest) {
     targetYear = y;
     targetMonth = m - 1;
   } else {
-    targetYear = nowTR.getFullYear();
-    targetMonth = nowTR.getMonth();
+    targetYear = trYear;
+    targetMonth = trMonth;
   }
 
-  const isCurrentMonth = targetYear === nowTR.getFullYear() && targetMonth === nowTR.getMonth();
+  const isCurrentMonth = targetYear === trYear && targetMonth === trMonth;
 
-  const todayStart = new Date(new Date(nowTR.getFullYear(), nowTR.getMonth(), nowTR.getDate()).toLocaleString("en-US", { timeZone: TZ }));
-  const todayEnd = new Date(new Date(nowTR.getFullYear(), nowTR.getMonth(), nowTR.getDate(), 23, 59, 59).toLocaleString("en-US", { timeZone: TZ }));
-  const monthStart = new Date(new Date(targetYear, targetMonth, 1).toLocaleString("en-US", { timeZone: TZ }));
-  const monthEnd = new Date(new Date(targetYear, targetMonth + 1, 0, 23, 59, 59).toLocaleString("en-US", { timeZone: TZ }));
+  const todayStart = new Date(`${trYear}-${pad(trMonth + 1)}-${pad(trDay)}T00:00:00+03:00`);
+  const todayEnd = new Date(`${trYear}-${pad(trMonth + 1)}-${pad(trDay)}T23:59:59+03:00`);
+  const lastDay = new Date(targetYear, targetMonth + 1, 0).getDate();
+  const monthStart = new Date(`${targetYear}-${pad(targetMonth + 1)}-01T00:00:00+03:00`);
+  const monthEnd = new Date(`${targetYear}-${pad(targetMonth + 1)}-${pad(lastDay)}T23:59:59+03:00`);
 
-  const todayPeriod = `${nowTR.getFullYear()}-${String(nowTR.getMonth() + 1).padStart(2, "0")}-${String(nowTR.getDate()).padStart(2, "0")}`;
-  const monthPeriod = `${targetYear}-${String(targetMonth + 1).padStart(2, "0")}`;
+  const todayPeriod = `${trYear}-${pad(trMonth + 1)}-${pad(trDay)}`;
+  const monthPeriod = `${targetYear}-${pad(targetMonth + 1)}`;
 
   const teams = await prisma.team.findMany({
     where: { isActive: true },
@@ -84,7 +98,7 @@ export async function GET(request: NextRequest) {
   const announcements = await prisma.announcement.findMany({
     where: {
       isActive: true,
-      OR: [{ expiresAt: null }, { expiresAt: { gte: nowTR } }],
+      OR: [{ expiresAt: null }, { expiresAt: { gte: new Date() } }],
     },
     orderBy: { createdAt: "desc" },
     take: 5,
@@ -160,7 +174,7 @@ export async function GET(request: NextRequest) {
     return { ...ts, refundTotal: teamRefunds, netMonthTotal: ts.monthTotal - teamRefunds };
   });
 
-  const todayMMDD = `${String(nowTR.getMonth() + 1).padStart(2, "0")}-${String(nowTR.getDate()).padStart(2, "0")}`;
+  const todayMMDD = `${pad(trMonth + 1)}-${pad(trDay)}`;
   const allUsers = await prisma.user.findMany({
     where: { isActive: true, birthday: { not: null } },
     select: { name: true, birthday: true, team: { select: { name: true, color: true } } },
@@ -171,7 +185,7 @@ export async function GET(request: NextRequest) {
     teamStats: teamStatsWithRefunds,
     birthdayUsers,
     todaySales: todaySales.slice(0, 20),
-    monthSales: monthSales.slice(0, 100),
+    monthSales,
     overallTodayTotal,
     overallMonthTotal,
     netMonthTotal: overallMonthTotal - totalRefunds,

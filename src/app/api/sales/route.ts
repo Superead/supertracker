@@ -5,6 +5,7 @@ import { getCurrentUser, createAuditLog } from "@/lib/auth";
 export async function GET(request: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (user.role === "educator") return Response.json({ error: "Forbidden" }, { status: 403 });
 
   const url = request.nextUrl;
   const date = url.searchParams.get("date");
@@ -14,15 +15,16 @@ export async function GET(request: NextRequest) {
 
   const where: Record<string, unknown> = { isDeleted: false };
 
-  const TZ = "Europe/Istanbul";
+  const pad = (n: number) => String(n).padStart(2, "0");
   if (date) {
-    const start = new Date(new Date(date + "T00:00:00").toLocaleString("en-US", { timeZone: TZ }));
-    const end = new Date(new Date(date + "T23:59:59").toLocaleString("en-US", { timeZone: TZ }));
+    const start = new Date(`${date}T00:00:00+03:00`);
+    const end = new Date(`${date}T23:59:59+03:00`);
     where.createdAt = { gte: start, lte: end };
   } else if (month) {
     const [y, m] = month.split("-").map(Number);
-    const start = new Date(new Date(y, m - 1, 1).toLocaleString("en-US", { timeZone: TZ }));
-    const end = new Date(new Date(y, m, 0, 23, 59, 59).toLocaleString("en-US", { timeZone: TZ }));
+    const lastDay = new Date(y, m, 0).getDate();
+    const start = new Date(`${y}-${pad(m)}-01T00:00:00+03:00`);
+    const end = new Date(`${y}-${pad(m)}-${pad(lastDay)}T23:59:59+03:00`);
     where.createdAt = { gte: start, lte: end };
   }
 
@@ -47,9 +49,10 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (user.role === "educator") return Response.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await request.json();
-  const { personCount, duration, packageType, unitPrice, discount, discountReason, customerType, customerNote, isBackdated, backdatedNote } = body;
+  const { personCount, duration, packageType, unitPrice, discount, discountReason, customerType, customerNote, customerEmail, customerPhone, isBackdated, backdatedNote } = body;
 
   if (!unitPrice || unitPrice <= 0) {
     return Response.json({ error: "Fiyat girilmelidir" }, { status: 400 });
@@ -59,18 +62,21 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "Düne satış girişi için açıklama zorunludur" }, { status: 400 });
   }
 
+  if (packageType === "birebir" && (!customerNote || customerNote.trim().length < 3)) {
+    return Response.json({ error: "Birebir satışta öğrenci/veli adı zorunludur" }, { status: 400 });
+  }
+
   const price = unitPrice;
   const discountAmount = discount || 0;
   const totalPrice = price - discountAmount;
 
-  const TZ = "Europe/Istanbul";
-  const nowTR = new Date(new Date().toLocaleString("en-US", { timeZone: TZ }));
   let createdAt: Date | undefined;
   if (isBackdated) {
+    const nowTR = new Date(Date.now() + 3 * 3600000);
     const yesterday = new Date(nowTR);
-    yesterday.setDate(yesterday.getDate() - 1);
-    yesterday.setHours(23, 59, 0, 0);
-    createdAt = yesterday;
+    yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+    const yStr = `${yesterday.getUTCFullYear()}-${String(yesterday.getUTCMonth() + 1).padStart(2, "0")}-${String(yesterday.getUTCDate()).padStart(2, "0")}`;
+    createdAt = new Date(`${yStr}T23:59:00+03:00`);
   }
 
   const sale = await prisma.sale.create({
@@ -85,6 +91,8 @@ export async function POST(request: NextRequest) {
       discountReason: discountReason || null,
       customerType: customerType || "new",
       customerNote: customerNote || null,
+      customerEmail: customerEmail || null,
+      customerPhone: customerPhone || null,
       isBackdated: isBackdated || false,
       backdatedNote: isBackdated ? backdatedNote : null,
       backdateApproved: false,
@@ -96,6 +104,20 @@ export async function POST(request: NextRequest) {
   });
 
   await createAuditLog(user.id, "create", "sale", sale.id, null, sale);
+
+  if (packageType === "birebir") {
+    await prisma.student.create({
+      data: {
+        studentName: customerNote.trim(),
+        parentPhone: customerPhone || null,
+        email: customerEmail || null,
+        paymentAmount: String(totalPrice),
+        status: "pending",
+        totalLessons: 12,
+        soldByName: user.name,
+      },
+    });
+  }
 
   return Response.json(sale, { status: 201 });
 }

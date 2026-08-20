@@ -14,7 +14,7 @@ export async function GET() {
     include: {
       members: {
         where: { isActive: true },
-        select: { id: true, name: true, email: true, birthday: true },
+        select: { id: true, name: true, email: true, birthday: true, kommoUserId: true },
       },
     },
     orderBy: { createdAt: "asc" },
@@ -80,23 +80,36 @@ export async function PUT(request: NextRequest) {
   const { action } = body;
 
   if (action === "add-member") {
-    const { teamId, name, email } = body;
+    const { teamId, name, email, role, phone, iban } = body;
     if (!teamId || !name || !email) {
       return Response.json({ error: "Takım, isim ve email gerekli" }, { status: 400 });
     }
-    const existing = await prisma.user.findUnique({ where: { email } });
+    const normalizedEmail = email.toLowerCase().trim();
+    const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (existing) {
       return Response.json({ error: "Bu email zaten kayıtlı" }, { status: 400 });
     }
+
+    // Educators cannot be created as agents — auto-detect by role or email domain
+    const isEducatorRole = role === "educator" || normalizedEmail.endsWith("@egitmen.superead.com");
+
     const member = await prisma.user.create({
       data: {
-        name, email,
+        name,
+        email: normalizedEmail,
         password: hashSync("satis123", 10),
-        role: "agent",
-        teamId,
+        role: isEducatorRole ? "educator" : "agent",
+        teamId: isEducatorRole ? null : teamId,
       },
     });
-    await createAuditLog(user.id, "create", "user", member.id, null, { name, email, teamId });
+
+    if (isEducatorRole) {
+      await prisma.educator.create({
+        data: { name, userId: member.id, isActive: true, phone: phone || null, iban: iban || null },
+      });
+    }
+
+    await createAuditLog(user.id, "create", "user", member.id, null, { name, email: normalizedEmail, teamId, role: member.role, phone, iban });
     return Response.json(member);
   }
 
@@ -136,6 +149,16 @@ export async function PUT(request: NextRequest) {
       data: { birthday: birthday || null },
     });
     await createAuditLog(user.id, "update", "user", userId, null, { action: "set-birthday", birthday });
+    return Response.json({ success: true });
+  }
+
+  if (action === "set-kommo-user") {
+    const { userId, kommoUserId } = body;
+    await prisma.user.update({
+      where: { id: userId },
+      data: { kommoUserId: kommoUserId ? parseInt(kommoUserId) : null },
+    });
+    await createAuditLog(user.id, "update", "user", userId, null, { action: "set-kommo-user", kommoUserId });
     return Response.json({ success: true });
   }
 

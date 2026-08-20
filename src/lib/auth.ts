@@ -28,7 +28,17 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get("token")?.value;
   if (!token) return null;
-  return verifyToken(token);
+  const payload = verifyToken(token);
+  if (!payload) return null;
+
+  // Role and status always come from the DB, never from the (possibly stale) token
+  const dbUser = await prisma.user.findUnique({
+    where: { id: payload.id },
+    select: { id: true, email: true, name: true, role: true, teamId: true, isActive: true },
+  });
+  if (!dbUser || !dbUser.isActive) return null;
+
+  return { id: dbUser.id, email: dbUser.email, name: dbUser.name, role: dbUser.role, teamId: dbUser.teamId };
 }
 
 export async function requireAuth(): Promise<AuthUser> {

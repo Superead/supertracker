@@ -5,8 +5,18 @@ import { signToken } from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
   const { email, password } = await request.json();
+  const rawEmail = (email || "").trim();
 
-  const user = await prisma.user.findUnique({ where: { email } });
+  let user = await prisma.user.findUnique({
+    where: { email: rawEmail },
+    include: { educator: { select: { id: true } } },
+  });
+  if (!user && rawEmail !== rawEmail.toLowerCase()) {
+    user = await prisma.user.findUnique({
+      where: { email: rawEmail.toLowerCase() },
+      include: { educator: { select: { id: true } } },
+    });
+  }
   if (!user || !user.isActive) {
     return Response.json({ error: "Geçersiz email veya şifre" }, { status: 401 });
   }
@@ -24,8 +34,10 @@ export async function POST(request: NextRequest) {
     teamId: user.teamId,
   });
 
+  const isEducator = !!user.educator;
+
   const response = Response.json({
-    user: { id: user.id, email: user.email, name: user.name, role: user.role, teamId: user.teamId },
+    user: { id: user.id, email: user.email, name: user.name, role: user.role, teamId: user.teamId, isEducator },
   });
 
   response.headers.set(
