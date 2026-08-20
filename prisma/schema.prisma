@@ -15,6 +15,7 @@ model User {
   role          String    @default("agent")
   avatar        String?
   birthday      String?
+  kommoUserId   Int?
   isActive      Boolean   @default(true)
   teamId        String?
   team          Team?     @relation(fields: [teamId], references: [id])
@@ -24,8 +25,36 @@ model User {
   deletionApprovals DeletionRequest[] @relation("ApprovedBy")
   refunds       Refund[]  @relation("RefundUser")
   refundsCreated Refund[] @relation("RefundCreator")
+  educator      Educator?
+  callDurations CallDuration[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+}
+
+// Daily lead counts. Values normally come from Kommo automatically;
+// these columns only hold manual overrides for days where Kommo is wrong.
+model DailyMetric {
+  id            String    @id @default(cuid())
+  date          String    @unique
+  morningCount  Int?
+  eveningCount  Int?
+  teamSize      Int?
+  note          String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model CallDuration {
+  id        String   @id @default(cuid())
+  date      String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  minutes   Int?
+  isOnLeave Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([date, userId])
 }
 
 model Team {
@@ -75,6 +104,9 @@ model Sale {
   discountReason String?
   customerType  String    @default("new")
   customerNote  String?
+  customerEmail String?
+  customerPhone String?
+  isPaid        Boolean   @default(false)
   personCount   Int       @default(1)
   duration      String    @default("yearly")
   packageType   String    @default("individual")
@@ -152,6 +184,106 @@ model BonusTier {
   isActive      Boolean   @default(true)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+}
+
+model Educator {
+  id            String    @id @default(cuid())
+  name          String
+  phone         String?
+  iban          String?
+  userId        String?   @unique
+  user          User?     @relation(fields: [userId], references: [id])
+  isInternal    Boolean   @default(false)
+  isActive      Boolean   @default(true)
+  students      Student[]
+  lessonLogs    LessonLog[] @relation("LessonLogs")
+  ratings       EducatorRating[]
+  studentRequests StudentRequest[] @relation("StudentRequests")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model ReadingResult {
+  id            String    @id @default(cuid())
+  textNumber    Int
+  wpm           Int?
+  correct       Int?
+  studentId     String
+  student       Student   @relation(fields: [studentId], references: [id])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([studentId, textNumber])
+}
+
+model StudentRequest {
+  id            String    @id @default(cuid())
+  status        String    @default("pending")
+  studentId     String
+  student       Student   @relation(fields: [studentId], references: [id])
+  educatorId    String
+  educator      Educator  @relation("StudentRequests", fields: [educatorId], references: [id])
+  createdAt     DateTime  @default(now())
+
+  @@unique([studentId, educatorId])
+}
+
+model EducatorRating {
+  id            String    @id @default(cuid())
+  score         Int?
+  comment       String?
+  ratedAt       DateTime?
+  educatorId    String
+  educator      Educator  @relation(fields: [educatorId], references: [id])
+  studentId     String
+  student       Student   @relation(fields: [studentId], references: [id])
+  createdAt     DateTime  @default(now())
+}
+
+model Student {
+  id                String    @id @default(cuid())
+  studentName       String
+  parentName        String?
+  parentPhone       String?
+  email             String?
+  grade             String?
+  totalLessons      Int       @default(12)
+  completedLessons  Int       @default(0)
+  schedule          String?
+  notes             String?
+  status            String    @default("pending")
+  followUp21        String?
+  surveyScore       String?
+  paymentAmount     String?
+  educatorId        String?
+  educator          Educator? @relation(fields: [educatorId], references: [id])
+  lessonLogs        LessonLog[]
+  ratings           EducatorRating[]
+  isListed          Boolean   @default(false)
+  offerPrice        String?
+  listingNote       String?
+  isPaid            Boolean   @default(false)
+  soldByName        String?
+  requests          StudentRequest[]
+  readingResults    ReadingResult[]
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model LessonLog {
+  id              String    @id @default(cuid())
+  lessonNumber    Int
+  date            String
+  time            String?
+  notes           String?
+  meetLink        String?
+  calendarEventId String?
+  studentId       String
+  student         Student   @relation(fields: [studentId], references: [id])
+  educatorId      String?
+  educator        Educator? @relation("LessonLogs", fields: [educatorId], references: [id])
+  createdAt       DateTime  @default(now())
 }
 
 model Announcement {
