@@ -47,6 +47,7 @@ const DURATION_LABELS: Record<string, string> = {
 const TYPE_LABELS: Record<string, string> = {
   instructor: "Eğitmen",
   individual: "Bireysel",
+  birebir: "Birebir",
 };
 
 export default function AgentPage() {
@@ -70,6 +71,8 @@ export default function AgentPage() {
   const [discountReason, setDiscountReason] = useState("");
   const [customerType, setCustomerType] = useState("new");
   const [customerNote, setCustomerNote] = useState("");
+  const [customerEmail, setCustomerEmail] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
 
   // Backdate (düne satış)
   const [isBackdated, setIsBackdated] = useState(false);
@@ -81,6 +84,10 @@ export default function AgentPage() {
 
   // Refunds
   const [monthRefunds, setMonthRefunds] = useState<{id: string; amount: number; reason: string; createdAt: string}[]>([]);
+
+  // Kommo lead data
+  const [kommoDaily, setKommoDaily] = useState<{ totalLeads: number; wonLeads: number; conversionRate: number } | null>(null);
+  const [kommoMonthly, setKommoMonthly] = useState<{ totalLeads: number; wonLeads: number; conversionRate: number } | null>(null);
 
   // Password change
   const [showPassword, setShowPassword] = useState(false);
@@ -100,6 +107,19 @@ export default function AgentPage() {
     if (dayRes.ok) setSales(await dayRes.json());
     if (monthRes.ok) setMonthlySales(await monthRes.json());
     if (refRes.ok) setMonthRefunds(await refRes.json());
+
+    try {
+      const kommoRes = await fetch("/api/kommo");
+      if (kommoRes.ok) {
+        const kd = await kommoRes.json();
+        const findMe = (list: { superTrackerUser: { id: string } | null; totalLeads: number; wonLeads: number; conversionRate: number }[]) =>
+          list.find((u) => u.superTrackerUser?.id === user?.id);
+        const myDaily = findMe(kd.daily?.perUser || []);
+        const myMonthly = findMe(kd.monthly?.perUser || []);
+        if (myDaily) setKommoDaily({ totalLeads: myDaily.totalLeads, wonLeads: myDaily.wonLeads, conversionRate: myDaily.conversionRate });
+        if (myMonthly) setKommoMonthly({ totalLeads: myMonthly.totalLeads, wonLeads: myMonthly.wonLeads, conversionRate: myMonthly.conversionRate });
+      }
+    } catch { /* ignore */ }
   }, [user?.id]);
 
   useEffect(() => {
@@ -107,6 +127,7 @@ export default function AgentPage() {
       .then((r) => r.json())
       .then((d) => {
         if (d.error) router.push("/login");
+        else if (d.user.role === "educator" || d.user.isEducator) router.push("/egitim");
         else setUser(d.user);
       });
     fetch("/api/packages")
@@ -125,6 +146,10 @@ export default function AgentPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (priceNum <= 0) return;
+    if (formPackageType === "birebir" && customerNote.trim().length < 3) {
+      alert("Birebir satışta öğrenci/veli adı zorunludur");
+      return;
+    }
     setLoading(true);
     const res = await fetch("/api/sales", {
       method: "POST",
@@ -138,6 +163,8 @@ export default function AgentPage() {
         discountReason: discountReason || undefined,
         customerType,
         customerNote: customerNote || undefined,
+        customerEmail: customerEmail || undefined,
+        customerPhone: customerPhone || undefined,
         isBackdated: isBackdated || undefined,
         backdatedNote: isBackdated ? backdatedNote : undefined,
       }),
@@ -152,6 +179,8 @@ export default function AgentPage() {
       setDiscount(0);
       setDiscountReason("");
       setCustomerNote("");
+      setCustomerEmail("");
+      setCustomerPhone("");
       setIsBackdated(false);
       setBackdatedNote("");
       if (isBackdated) {
@@ -310,6 +339,44 @@ export default function AgentPage() {
             <p className="text-2xl font-bold text-white mt-1">{monthlySales.length}</p>
           </div>
         </div>
+
+        {/* Kommo Lead Conversion */}
+        {(kommoDaily || kommoMonthly) && (
+          <div className="mb-6 grid grid-cols-2 gap-3">
+            {kommoDaily && kommoDaily.totalLeads > 0 && (
+              <div className="bg-gradient-to-br from-blue-600/10 to-cyan-600/10 border border-blue-500/20 rounded-2xl p-4">
+                <p className="text-blue-300 text-xs font-medium">📈 Günlük Dönüşüm</p>
+                <p className={`text-2xl font-bold mt-1 ${
+                  kommoDaily.conversionRate >= 20 ? "text-green-400" :
+                  kommoDaily.conversionRate >= 10 ? "text-yellow-400" : "text-red-400"
+                }`}>%{kommoDaily.conversionRate}</p>
+                <p className="text-slate-400 text-xs mt-1">{kommoDaily.totalLeads} lead → {kommoDaily.wonLeads} satış</p>
+                <div className="w-full bg-white/10 rounded-full h-1.5 mt-2">
+                  <div className={`h-1.5 rounded-full ${
+                    kommoDaily.conversionRate >= 20 ? "bg-green-400" :
+                    kommoDaily.conversionRate >= 10 ? "bg-yellow-400" : "bg-red-400"
+                  }`} style={{ width: `${Math.min(kommoDaily.conversionRate, 100)}%` }} />
+                </div>
+              </div>
+            )}
+            {kommoMonthly && kommoMonthly.totalLeads > 0 && (
+              <div className="bg-gradient-to-br from-purple-600/10 to-pink-600/10 border border-purple-500/20 rounded-2xl p-4">
+                <p className="text-purple-300 text-xs font-medium">📊 Aylık Dönüşüm</p>
+                <p className={`text-2xl font-bold mt-1 ${
+                  kommoMonthly.conversionRate >= 20 ? "text-green-400" :
+                  kommoMonthly.conversionRate >= 10 ? "text-yellow-400" : "text-red-400"
+                }`}>%{kommoMonthly.conversionRate}</p>
+                <p className="text-slate-400 text-xs mt-1">{kommoMonthly.totalLeads} lead → {kommoMonthly.wonLeads} satış</p>
+                <div className="w-full bg-white/10 rounded-full h-1.5 mt-2">
+                  <div className={`h-1.5 rounded-full ${
+                    kommoMonthly.conversionRate >= 20 ? "bg-green-400" :
+                    kommoMonthly.conversionRate >= 10 ? "bg-yellow-400" : "bg-red-400"
+                  }`} style={{ width: `${Math.min(kommoMonthly.conversionRate, 100)}%` }} />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Refund Notice */}
         {monthRefunds.length > 0 && (
@@ -509,10 +576,11 @@ export default function AgentPage() {
             {/* Paket Türü */}
             <div>
               <label className="block text-purple-300 text-sm font-medium mb-2">Paket Türü</label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 {[
                   { value: "instructor", label: "👩‍🏫 Eğitmen" },
                   { value: "individual", label: "👤 Bireysel" },
+                  { value: "birebir", label: "📚 Birebir" },
                 ].map((pt) => (
                   <button
                     key={pt.value}
@@ -595,14 +663,45 @@ export default function AgentPage() {
               </div>
             </div>
 
+            {/* Email & Telefon */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-purple-300 text-sm font-medium mb-2">
+                  Email {formPackageType === "birebir" ? "" : "(opsiyonel)"}
+                </label>
+                <input
+                  type="email"
+                  value={customerEmail}
+                  onChange={(e) => setCustomerEmail(e.target.value)}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                  placeholder="ornek@mail.com"
+                />
+              </div>
+              <div>
+                <label className="block text-purple-300 text-sm font-medium mb-2">
+                  Telefon {formPackageType === "birebir" ? "" : "(opsiyonel)"}
+                </label>
+                <input
+                  type="tel"
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                  placeholder="+90 5XX XXX XX XX"
+                />
+              </div>
+            </div>
+
             <div>
-              <label className="block text-purple-300 text-sm font-medium mb-2">Not (opsiyonel)</label>
+              <label className="block text-purple-300 text-sm font-medium mb-2">
+                {formPackageType === "birebir" ? "Öğrenci / Veli Adı *" : "Not (opsiyonel)"}
+              </label>
               <input
                 type="text"
                 value={customerNote}
                 onChange={(e) => setCustomerNote(e.target.value)}
+                required={formPackageType === "birebir"}
                 className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:ring-2 focus:ring-purple-500 focus:outline-none"
-                placeholder="Ek bilgi..."
+                placeholder={formPackageType === "birebir" ? "Öğrenci veya veli adı (zorunlu)" : "Ek bilgi..."}
               />
             </div>
 

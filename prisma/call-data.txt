@@ -1,0 +1,73 @@
+#MONTH 2026-06
+#HEADER İREM|MERVE|EYLÜL|HATİCE|ECEM|MELİKE|MİHRİ|ESRA|-|-|ALEYNA|AYBÜKE|şeyma|irem2
+1|3 saat 30 dakika|2 saat 50 dakika|3 saat 45 dakika|1 saat 54 dakika|2 saat 43 dakika|2 saat 46 dakika|2 saat 24 dakika|3 saat 11 dakika|||||||
+2|2 saat 43 dakika|3 saat 16 dakika|2 saat 22 dakika|2 saat 30 dakika|2 saat 37 dakika|2 saat 59 dakika|2 saat 17 dakika|3 saat 9 dakika|||||||
+3|2 saat 10 dakika|3 saat 31 dakika|2 saat 19 dakika|2 saat 38 dakika|2 saat 23 dakika|2 saat 45 dakika|2 saat 19 dakika|3 saat 5 dakika|||||||
+4||3 saat 50 dakika|1 saat 47 dakika|2 saat 2 dakika|2 saat 28 dakika|2 saat 47 dakika|2 saat 22 dakika|2 saat 58 dakika|||||||
+5|2saat 5 dakika|2 saat 59 dakika|2 saat 5 dakika|3 saat 17 dakika|2 saat 23 dakika|2 saat 41 dakika|SKIP|2 saat 34 dakika|||||||
+6||2 saat 48 dakika||3 saat 3 dakika|2 saat 8 dakika|||2 saat 55 dakika|||||||
+8|2 saat 46 dakika|2 saat 38 dakika|3 saat 38 dakika|2 saat 45 dakika|2 saat 42 dakika|3 saat 1 dakika|2 saat 8 dakika|2 saat40 dakika|||2 saat 30 dakika||||
+9|2 saat 45 dakika|2 saat 40 dakika|2 saat 37 dakika|2 saat 42 dakika|2 saat 28 dakika|2 saat 51 dakika|1 saat 40 dakika|2 saat 56 dakika|||2 saat 30 dakika||||
+10|1 Saat 50 dakika|3 saat 4 dakika|2 saat 48 dakika|3 saat 6 dakika|2 saat 32 dakika|2 saat 54 dakika|2 saat 18 dakika|2 saat 37 dakika|||2 saat 12 dakika|2 saat 12 dakika|||
+11|2 saat 5 dakika|2 saat 50 dakika|2 saat 4 dakika|3 saat 6 dakika|2 saat 39 dakika|2 saat 47 dakika|2 saat 20 dakika|2 saat 24 dakika|||2 saat 3 dakika|1 saat 28 dakika|||
+12|1 saat 54 dakika|2 saat 21 dakika|2 saat 45 dakika|4 saat 1 dakika|2 saat 34 dakka|2 saat 43 dakika|2 saat 20 dakika|2 saat 32 dakika|||2 saat 51 dakika|2 saat 10 dakika|||
+13|2 saat 59 dakika|izinli|3 saat 4 dakika|izinli|izinli|3 saat 11 dakika|2 saat 45 dakika|izinli||||izinli|||
+15|2 saat 35 dakika|3 saat 13 dakika|4 saat 11 dakika|2 saat 50 dakika|2 saat 56 dakika|3 saat 12 dakika|2 saat 18 dakika|2 saat 26 dakika|||2 saat 4 dakika|2 saat 15 dakika|||
+16|2 saat 35 dakika|2 saat 41 dakika|3 saat 3 dakika|3 saat 14 dakika|2 saat 25 dakika||2 saat 54 dakika|2 saat 40 dakika|||2 saat 23 dakika|2 saat 17 dakika|||
+17|2 saat 47 dakika|2 saat 55 dakika|2 saat 22 dakika|3 saat 20 dakika|2 saat 54 dakika|2 saat 56 dakika|3 saat|2 saat 49 dakika|||3 saat 20 dakika|1 saat 54 dakika|||
+18|2 saat 15 dakika|2 saat 54 dakika|2 saat 43 dakika|2 saat 56 dakika|2 saat 52 dakika|2 saat 49 dakika|2 saat 52 dakika|2 saat 54 dakika|||2 saat 49 dakika|2 saat 20 dakika|||
+19|1 saat 50 dakika|3 saat 10 dakika|3 saat 35 dakika|2 saat 50 dakika|2 saat 34 dakika|2 saat 30 dakika|2 saat 39 dakika|2 saat 35 dakika|||3 saat 5 dakika|2 saat 18 dakika|1 saat 30 dakika|1 saat 25 dakika|
+20|3 saat 47 dakika|izin|izin|3 saat 35 dakika|SKIP|izin|izin|2 saat 46 dakika|||izin|2 saat 23 dakika|1 saat 50 dakika|izin|
+21|2 SAAT 5 DAKİKA|2 SAAT 45 DAKİKA|3 SAAT 45 DAKİKA|3 saat 31 dakika|izin|3 SAAT 4 DAKİKA|3 SAAT 17 DAKİKA|3 saat 2 dakika|||3 saat 1 dakika|2 saat 20 dakika|1 saat 30 dakika|1 saat 15 dakika|
+22|1 saat 50 dakika|2 saat 22 dakika|2 saat 29 dakika|2 saat 50 dakika|2 saat 41 dakika|2 saat 54 dakika|2 saat 43 dakika|2 saat 51 dakika|||2 saat 35 dakika|2 saat 7 dakika|2 saat 30 dakika|2 saat 1 dakika|
+23|2 saat 27 dakika|2 saat 45 dakika|2 saat 20 dakika|2 saat 46 dakika|2 saat 31 dakika|2 saat 55 dakika|2 saat 33 dakika|2 saat 57 dakika|||2 saat 46 dakika|2 saat 12 dakika|2 saat 13 dakika|2 saat 17 dakika|
+24|2 saat 23 dakika|2 saat 55 dakika|3 saat 12 dakika|2 saat 54 dakika|2 saat 43 dakika|2 saat 52 dakika|2 saat 14 dakika|2 saat 25 dakika|||1 saat 45 dakika|2 saat 53 dakika|2 saat 1 dakika|1 saat 43 dakika|
+25|2 saat 7 dakika|3 saat 10 dakika|2 saat 10 dakika|2 saat 23 dakika|2 saat 32 dakika|2 saat 39 dakika|2 saat 20 dakika|2 saat 27 dakika|||2 saat 12 dakika|2 saat 43 dakika|2 saat 34 dakika|2 saat 13 dakika|
+27||3 saat 47 dakika|2 saat 54 dakika|||3 saat 21 dakika|2 saat 54 dakika||||3 saat 37 dakika|||1 saat 57 dakika|
+29|2 saat 45 dakika|3 saat|3 saat 44 dakika|3 saat 12 dakika|2 saat 18 dakika|2 saat 30 dakika|2 saat 39 dakika|2 saat 43 dakika|||2 saat 19 dakika|2 saat 58 dakika|3 saat 10 dakika||
+
+#MONTH 2026-07
+#HEADER İREM|MERVE|EYLÜL|HATİCE|ECEM|MELİKE|ESRA|-|-|ALEYNA|AYBÜKE|şeyma
+1|2 saat 22 ddakika|2 saat 43 dakika|2 saat 7 dakika|2 saat 38 dakika|2 saat 28 dakika|2 saat 38 dakika|2 saat 23 dakika|||2 saat 43 dakika|2 saat 58 dakika|2 saat 45 dakika|
+2|2 saat 13 dakika|2 saat 57 dakika|2 saat 20 dakika|2 saat 32 dakika|2 saat 48 dakika|2 saat 25 dakika|2 saat 40 dakika|||2 saat 45 dakika|SKIP|2 saat 34 dakika|
+3|2 saat 58 dakika|2 saat 45 dakika|2 saat 25 dakika|2 saat 38 dakika|2 saat 39 dakika|2 saat 53 dakika|2 saat 33 dakia|||2 saat 45 dakika|2 saat 56 dakika|3 saat 3 dakika|
+4|3 saat 47 dakika|-|-|2 saat 45 dakika|2 saat 50 dakika|-|-|||-|3 saat 28 dakika|4 saat 8 dakşka|
+6|2 saat 43 dakika|3 saat 4 dakika|3 saat 48 dakika|3 saat 3 dakika|2 saat 43 dakika|2 saat 56 dakika|3 saat 12 dakika|||2 saat 46 dakika|2 saat 53 dakika|3 saat 55 dakika|
+7|1 saat 54 dakika|2 saat 40 dakika|2 saat 54 dakika|3 saat 1 dakika|2 saat 30 dakika|2 saat 52 dakika|2 saat 41 dakika|||3 saat 7 dakika|2 saat 55 dakika|2 saat 27 dakika|
+8|3 saat 4 dakika|2 saat 33 dakika|2 saat 43 dakika|2 saat 47 dakika|2 saat 43 dakika|3 saat 25 dakika|2 saat 41 dakika|||2 saat 51 dakika|2 saat 57 dakika|2 saat 14 dakika|
+9|2 saat 36 dakika|2 saat 31 dakika|2 saat 38 dakika|3 saat 47 dakika|3 saat 10 dakika|2 saat 52 dakika|3 saat 1 dakika|||2 saat 38 dakika|2 saat 50 dakika|2 saat 49 dakika|
+10|3 saat 1 dakika|2 saatv 49 dakika|2 saat 27 dakika|2 saat 30 dakika|2 saat 33 dakika|2 saat 40 dakika|2 saat 45 dakika|||2 saat 55 dakika|2 saat 57 dakika|2 saat 40 dakika|
+11||2 saat 47 dakika|3 saat 44 dakika|||3 saat 31 dakika|2 saat 45 dakika|||3 saat 4 dakika|||
+13|2 saat 16 dakika|2 saat 46 dakika|3 saat 7 dakika|2 saat 38 daKİKA|2 saat 37 dakika|2 SAAT 46 DAKİKA|2 saat 35 dakia|||3 saat 11 dakia|2 saat 52 dakika|2 saat 22 dakika|
+14|2 saat 3 dakika|3 saat 10 dakika|2 saat 49 dakika|2 saat 20 dakika|2 saat 50 dakika|2 saat 35 dakika|2 saat 23 dakika|||2 saat 43 dakika|2 saat 49 dakika|2 saat 43 dakika|
+15|2 saat 34 dakika|2 saat 56 dakika|2 saat 12 dakika|3 saat 4 dakika|2 saat 45 dakika|2 saat 12dakika|2 saat 34 dakika|||2 saat 58 dakika|2 saat 37 dakika|2 saat 33 dakika|
+16|2 saat 48 dakika|2 saat 35 dakika|2 saat 36 dakika|3 saat 26 dakika|2 saat 32 dakika|2 saat 49 dakika|2 saat 31 dakika|||2 saat 52 dakika|2 saat 57 dakika|3 saat|
+17|1 saat 50 dakika|2 saat 43 dakika|2 saat 50 dakika|2 saat 13 dakika|2 saat 21 dakika|2 saat 47 dakşka|2 saat 23 dakika|||2 saat 34 dakika|2 saat 31 dakika|2 saat 54 dakika|
+18|2 saat 55 dakika|-|-|2 saat 24 dakika|2 saat 34 dakika|||||3 saat 13 dakika|3 saat 12 dakika||
+20|2 saat 25 dakika|2 saat 21 dakika|2 saqt 50 dakika|2 saat 41 dakika|2 saat 15 dakika|2 saat 55 dakika|2 saat 4 dakika|||3 saat 21 daklika|3 saat|3 saat 5 dakika|
+21|1 SAAT 50 DAKİKA|2 saat 50 dakika|2 saat 55 dakika|2 saat 7 dakika|2 saat 19 dakika|2 SAAT 48 DAKİKA|2 saat 35 dakika|||2 saat 23 dakika|2 saat 45 dakika|2 saat 55 dakika|
+22|2 saat 10 dakika|2 saat 43 dakika|2 saat 34 dakika|2 saat 12 dakika|2 saat 36 dakika|2saat 53 dakika|2 saat 20 dakika|||3 saat 10 dakika|2 saat 57 dakika|2 saat 34 dakika|
+23|2 saat 40 dakika|2 saat 58 dakika|2 saat 55 dakika|2 saat 40 dakika|2 saat 34 dakika|2 saat 40 dakika|2 saat 35 dakika|||2 saat 54 dakika|2 saat 43 dakşka|2 saat 51 dakika|
+24|1 saat 50 dakika|2 saat 45 dakika|2 saat 19 dakika|2 saat 16 dakial|2 saat 33 dakika|2 saat 23 dakika|2 saat 43 dakika|||2 saat 52 dakika|2 saat 33 dakika|2 saat 1 dakika|
+25||2 saat 45 dakika|2 saat 56 dakika|||2 saat 35 dakika||||2 saat 45 dakika|||
+27|2 saat 32 dakika|2 saat 50 dakka|2 saat 34 dakika|2 saat 45 dakika|2 saat 54 dakşka|3 saat 12 dakika|2 saat 42 dakika|||3 saat 6 dakika|3 saat 4 dakika|2 saat 34 dakika|
+28|2 saat 47 dakika|3 saat 10 dakika|3 saat 4 dakika|2 saat 32 dakika|2saat 43 dakika|2 saat 54 dakika|2 saar 23 dakika|||3 saat 10 dakika|2 saat 45 dakika|2 saat 54 dakika|
+29|3 saat 5 dakika|3 saat 10 dakika|3 saat 2 dakika|2 saat 30 dakika|3 saat 15 dakika|3 saat 20 dakika|2 saat 50 dakika|||3 saat 5 dakika|3 saat 3 dakika||
+30|2 saat 43 dakika|3 saat 1 dakika|3 saat 4 dakika|2 saat 14 dakika|3 saat 5 dakika|2 saat 50 dakika|2 saat 43 dakika|||3 saat 3 dakika|2 saat 58 dakika|2 saat 34 dakika|
+
+#MONTH 2026-08
+#HEADER İREM|MERVE|EYLÜL|HATİCE|ECEM|MELİKE|ESRA|-|-|ALEYNA|AYBÜKE|SENA|EBRAR|Gamze
+1|3 saat 6 dakika|||2 saat 20 dakika|2 saat 50 dakika|||||3 saat 6 dakika||||
+3|2 saat 58 dakika|3 saat 21 dakika|3 saat 4 dakika|3 saat 7 dakika|3 saat 10 dakika||3 saat 4 dakika|||3 saat 16 dakika|3 saat 38 dakika||||
+4|2 saat 45 dakika|3 saat 30 dakika|2 saat 48 dakika|2 saat 9 dakika|3 saat 21 dakika||3 saat 10 dakika|||3 saat 1 dakika|2 saat 53 dakika||||
+5|2 saat 53 dakika|3 saat 2 dakika|2 saat 46 dakika|2 saat 25 dakika|2 saat 30 dakika||3 saat 29 dakika|||3 saat 4 dakika|2 saat 56 dakika||||
+6|2 saat 43 dakika|2 saat 54 dakika|2 saat 35 dakika|2 saat 54 dakika|||3 saat 14 dakika|||3 saat 1 dakika|3 saat 41 dakika||||
+7|2 saat 23 dakiak|2 saat 34 dakika|2 saat 36 dakika|2 saat 43 dakika|2 saat 36 dakika||2 saat 35 dakika|||3 saat 2 dakika|3 saat 10 dakika||||
+8||2 saat 55 dakika|3 saat 22 dakika||||3 saat 11 dakika||||3 saat 28 dakika|2 Saat 46 dakika|||
+9||3 saat 7 dakika|3 saat 10 dakika|2 saat 20 dakika|2 saat 40 dakika|2 saat 46 dakika|2 saat 50 dakika|||3 saat|3 saat 10 dakika|2 saat 50 dakika|2 saat 40 dakika|2 saat 59 dakika|
+10||2 saat 41 dakika|2 saat 43 dakika|2 saat 21 dakika|3 saat 26 dakika||2 saat 59 dakika|||3 saat 12 dakila|3 saat 29 dakika|2 saat 45 dakika|2 saat 50 dakika|1 saat 12 dakika|
+11||2 saat 36 dakika|2 saat 33 dakika|2 saat 30 dakika|2 saat 30 dakika||2 saat 27 dakika|||3 saat 5 dakika|3 saat|2 saat 16 dakika|2 saat 20 dakika|1 saat 50 dakika|
+12||3 saat 33 dk|2 saat 46 dakika|2 saat 11 dakika|3 saat 9 dakika||3 saat 2 dakika|||3 saat 1dakika|3 saat 12 dakika|2 saat 21 dakika|2 saat 23 dakika|1 saat 53 dakika|
+13||2 saat 49 dakika|2 saat 36 dakika|3 saat 2 dakika|2 saat 40 dakika||3 saat 10 dakika|||3 saat 10 dakika|3 saat 8 dakika|2 saat 20 dakika|2 saat 18 dakika|1 saat 55 dakika|
+14||2 saat 51 dakika|2 saat 45 dakika||||3 saat 6 dakika||||3 saat 52 dakika||2 saat 50 dakika||
+17|3 saat 12 dakika|3 saat 24 dakika|2 saat 40 dakika|2 saat 34 dakika|3 saat 1 dakika||3 saat 7 dakika||||4 saat 19 dakika|3 saat 21 dakika|3 saat 5 dakika|

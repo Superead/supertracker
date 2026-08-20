@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import DailyTracking from "./DailyTracking";
 
 interface DeletionRequest {
   id: string;
@@ -43,7 +44,7 @@ interface TeamData {
   name: string;
   color: string;
   isActive: boolean;
-  members: { id: string; name: string; email: string; birthday: string | null }[];
+  members: { id: string; name: string; email: string; birthday: string | null; kommoUserId: number | null }[];
 }
 
 interface ProductData {
@@ -76,7 +77,16 @@ interface RefundData {
   createdBy: { name: string };
 }
 
-type Tab = "overview" | "refunds" | "deletions" | "audit" | "goals" | "bonuses" | "products" | "teams" | "ledger";
+interface KommoUserData {
+  kommoUserId: number;
+  kommoUserName: string;
+  superTrackerUser: { id: string; name: string } | null;
+  totalLeads: number;
+  wonLeads: number;
+  conversionRate: number;
+}
+
+type Tab = "overview" | "refunds" | "deletions" | "audit" | "goals" | "bonuses" | "products" | "teams" | "ledger" | "conversion" | "daily";
 
 function formatTL(n: number) {
   return new Intl.NumberFormat("tr-TR").format(n);
@@ -108,6 +118,9 @@ export default function AdminPage() {
   const [goalTarget, setGoalTarget] = useState("");
   const [goalPeriod, setGoalPeriod] = useState("");
   const [goalIsGlobal, setGoalIsGlobal] = useState(true);
+  const [goals, setGoals] = useState<{id: string; type: string; target: number; period: string; isGlobal: boolean; team?: {name: string} | null}[]>([]);
+  const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
+  const [editGoalTarget, setEditGoalTarget] = useState("");
 
   // Bonus form
   const [bonusMin, setBonusMin] = useState("");
@@ -148,6 +161,9 @@ export default function AdminPage() {
   const [addMemberTeamId, setAddMemberTeamId] = useState<string | null>(null);
   const [addMemberName, setAddMemberName] = useState("");
   const [addMemberEmail, setAddMemberEmail] = useState("");
+  const [addMemberRole, setAddMemberRole] = useState("agent");
+  const [addMemberPhone, setAddMemberPhone] = useState("");
+  const [addMemberIban, setAddMemberIban] = useState("");
   const [resetPwUserId, setResetPwUserId] = useState<string | null>(null);
   const [resetPwValue, setResetPwValue] = useState("satis123");
 
@@ -163,6 +179,13 @@ export default function AdminPage() {
 
   // Backdate requests
   const [backdateRequests, setBackdateRequests] = useState<BackdateSale[]>([]);
+
+  // Kommo / Conversion
+  const [kommoDailyData, setKommoDailyData] = useState<KommoUserData[]>([]);
+  const [kommoMonthlyData, setKommoMonthlyData] = useState<KommoUserData[]>([]);
+  const [kommoLoading, setKommoLoading] = useState(false);
+  const [kommoUsers, setKommoUsers] = useState<{ id: number; name: string }[]>([]);
+  const [kommoView, setKommoView] = useState<"daily" | "monthly">("daily");
 
   // Filters for sales table
   const [filterAgent, setFilterAgent] = useState("");
@@ -209,6 +232,25 @@ export default function AdminPage() {
     if (user && tab === "ledger") loadLedger();
   }, [user, tab, loadLedger]);
 
+  const loadKommo = useCallback(async () => {
+    setKommoLoading(true);
+    try {
+      const res = await fetch("/api/kommo");
+      if (res.ok) {
+        const data = await res.json();
+        setKommoDailyData(data.daily?.perUser || []);
+        setKommoMonthlyData(data.monthly?.perUser || []);
+        setKommoUsers(data.daily?.perUser?.map((u: KommoUserData) => ({ id: u.kommoUserId, name: u.kommoUserName })) || []);
+      }
+    } catch { /* ignore */ }
+    setKommoLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (user && tab === "conversion") loadKommo();
+    if (user && tab === "goals") loadGoals();
+  }, [user, tab, loadKommo]);
+
   async function handleDeletionAction(requestId: string, action: "approve" | "reject") {
     await fetch("/api/admin/deletion-requests", {
       method: "PUT",
@@ -216,6 +258,11 @@ export default function AdminPage() {
       body: JSON.stringify({ requestId, action }),
     });
     await loadData();
+  }
+
+  async function loadGoals() {
+    const res = await fetch("/api/admin/goals");
+    if (res.ok) setGoals(await res.json());
   }
 
   async function handleCreateGoal(e: React.FormEvent) {
@@ -233,6 +280,30 @@ export default function AdminPage() {
     setGoalTarget("");
     setGoalPeriod("");
     await loadData();
+    await loadGoals();
+  }
+
+  async function handleUpdateGoal(id: string) {
+    await fetch("/api/admin/goals", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, target: Number(editGoalTarget) }),
+    });
+    setEditingGoalId(null);
+    setEditGoalTarget("");
+    await loadData();
+    await loadGoals();
+  }
+
+  async function handleDeleteGoal(id: string) {
+    if (!confirm("Bu hedef silinsin mi?")) return;
+    await fetch("/api/admin/goals", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    await loadData();
+    await loadGoals();
   }
 
   async function handleCreateBonus(e: React.FormEvent) {
@@ -421,12 +492,26 @@ export default function AdminPage() {
     const res = await fetch("/api/admin/teams", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "add-member", teamId, name: addMemberName, email: addMemberEmail }),
+      body: JSON.stringify({
+        action: "add-member",
+        teamId,
+        name: addMemberName,
+        email: addMemberEmail,
+        role: addMemberRole,
+        phone: addMemberPhone || null,
+        iban: addMemberIban || null,
+      }),
     });
     if (res.ok) {
       setAddMemberTeamId(null);
       setAddMemberName("");
       setAddMemberEmail("");
+      setAddMemberRole("agent");
+      setAddMemberPhone("");
+      setAddMemberIban("");
+      if (addMemberRole === "educator") {
+        alert("Eğitmen hesabı oluşturuldu. Eğitmen /egitim panelini kullanacak, takıma eklenmedi.");
+      }
       await loadData();
     } else {
       const err = await res.json();
@@ -506,6 +591,8 @@ export default function AdminPage() {
     { key: "products", label: "Ürünler & Paketler", icon: "📦" },
     { key: "teams", label: "Takımlar", icon: "👥" },
     { key: "ledger", label: "Muhasebe", icon: "📒" },
+    { key: "conversion", label: "Dönüşüm", icon: "📈" },
+    { key: "daily", label: "Günlük Takip", icon: "📞" },
   ];
 
   return (
@@ -517,6 +604,9 @@ export default function AdminPage() {
             <p className="text-sm text-slate-400">Hoş geldin, {user.name}</p>
           </div>
           <div className="flex items-center gap-3">
+            <a href="/egitim" className="px-4 py-2 bg-blue-600/30 text-blue-300 rounded-lg text-sm hover:bg-blue-600/50 transition">
+              📚 Eğitim
+            </a>
             <a href="/dashboard" className="px-4 py-2 bg-purple-600/30 text-purple-300 rounded-lg text-sm hover:bg-purple-600/50 transition">
               📊 Dashboard
             </a>
@@ -666,6 +756,7 @@ export default function AdminPage() {
                 if (filterAgent && sale.user.name !== filterAgent) return false;
                 if (filterType === "educator" && sale.packageType !== "instructor" && sale.packageType !== "educator") return false;
                 if (filterType === "individual" && sale.packageType !== "individual") return false;
+                if (filterType === "birebir" && sale.packageType !== "birebir") return false;
                 return true;
               });
               const filteredTotal = filteredSales.reduce((sum, s) => sum + s.totalPrice, 0);
@@ -694,6 +785,7 @@ export default function AdminPage() {
                     <option value="">Tüm Türler</option>
                     <option value="educator">👩‍🏫 Eğitici</option>
                     <option value="individual">👤 Bireysel</option>
+                    <option value="birebir">📚 Birebir</option>
                   </select>
                   {(filterAgent || filterType) && (
                     <button
@@ -1052,6 +1144,53 @@ export default function AdminPage() {
                 Hedef Oluştur
               </button>
             </form>
+
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+              <h3 className="text-lg font-bold text-white mb-4">Mevcut Hedefler</h3>
+              {goals.length === 0 ? (
+                <p className="text-slate-400 text-sm">Henüz hedef yok</p>
+              ) : (
+                <div className="space-y-2">
+                  {goals.map((g) => (
+                    <div key={g.id} className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+                      {editingGoalId === g.id ? (
+                        <div className="flex items-center gap-3 w-full">
+                          <span className="text-sm text-white">{g.type === "daily" ? "Günlük" : "Aylık"} — {g.period} {g.isGlobal ? "(Genel)" : g.team?.name ? `(${g.team.name})` : ""}</span>
+                          <input
+                            type="number"
+                            value={editGoalTarget}
+                            onChange={(e) => setEditGoalTarget(e.target.value)}
+                            className="w-40 px-3 py-1.5 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                          />
+                          <span className="text-slate-400 text-sm">₺</span>
+                          <button onClick={() => handleUpdateGoal(g.id)} className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs hover:bg-green-700">Kaydet</button>
+                          <button onClick={() => setEditingGoalId(null)} className="px-3 py-1.5 bg-white/10 text-slate-400 rounded-lg text-xs">İptal</button>
+                        </div>
+                      ) : (
+                        <>
+                          <div>
+                            <span className={`text-xs px-2 py-0.5 rounded-full mr-2 ${g.type === "daily" ? "bg-blue-500/20 text-blue-400" : "bg-purple-500/20 text-purple-400"}`}>
+                              {g.type === "daily" ? "Günlük" : "Aylık"}
+                            </span>
+                            <span className="text-white text-sm font-medium">{g.period}</span>
+                            <span className="text-slate-400 text-sm ml-2">
+                              {g.isGlobal ? "(Genel)" : g.team?.name ? `(${g.team.name})` : ""}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-white font-bold">{Number(g.target).toLocaleString("tr-TR")} ₺</span>
+                            <button onClick={() => { setEditingGoalId(g.id); setEditGoalTarget(String(g.target)); }}
+                              className="px-3 py-1 bg-blue-600/30 text-blue-300 rounded-lg text-xs hover:bg-blue-600/50">Düzenle</button>
+                            <button onClick={() => handleDeleteGoal(g.id)}
+                              className="px-3 py-1 bg-red-600/30 text-red-300 rounded-lg text-xs hover:bg-red-600/50">Sil</button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -1289,6 +1428,22 @@ export default function AdminPage() {
                                 🎂
                               </button>
                               <button
+                                onClick={() => {
+                                  const currentId = m.kommoUserId ? String(m.kommoUserId) : "";
+                                  const kid = prompt("Kommo User ID:", currentId);
+                                  if (kid !== null) {
+                                    fetch("/api/admin/teams", {
+                                      method: "PUT",
+                                      headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({ action: "set-kommo-user", userId: m.id, kommoUserId: kid || null }),
+                                    }).then(() => loadData());
+                                  }
+                                }}
+                                className={`text-xs ${m.kommoUserId ? "text-blue-400 hover:text-blue-300" : "text-slate-500 hover:text-slate-400"}`}
+                              >
+                                🔗 {m.kommoUserId ? "Kommo" : "Kommo Eşle"}
+                              </button>
+                              <button
                                 onClick={() => { setResetPwUserId(resetPwUserId === m.id ? null : m.id); setResetPwValue("satis123"); }}
                                 className="text-yellow-400 hover:text-yellow-300 text-xs"
                               >
@@ -1332,33 +1487,63 @@ export default function AdminPage() {
                         <p className="text-slate-500 text-sm">Henüz üye yok</p>
                       )}
                       {addMemberTeamId === team.id ? (
-                        <div className="flex gap-2 mt-2">
-                          <input
-                            type="text"
-                            value={addMemberName}
-                            onChange={(e) => setAddMemberName(e.target.value)}
-                            className="flex-1 px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none"
-                            placeholder="İsim"
-                          />
-                          <input
-                            type="email"
-                            value={addMemberEmail}
-                            onChange={(e) => setAddMemberEmail(e.target.value)}
-                            className="flex-1 px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none"
-                            placeholder="email@superead.com"
-                          />
-                          <button
-                            onClick={() => handleAddMember(team.id)}
-                            className="px-3 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition"
-                          >
-                            Ekle
-                          </button>
-                          <button
-                            onClick={() => setAddMemberTeamId(null)}
-                            className="px-3 py-2 bg-slate-600 text-white rounded-lg text-sm hover:bg-slate-700 transition"
-                          >
-                            İptal
-                          </button>
+                        <div className="space-y-2 mt-2">
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={addMemberName}
+                              onChange={(e) => setAddMemberName(e.target.value)}
+                              className="flex-1 px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                              placeholder="İsim"
+                            />
+                            <input
+                              type="email"
+                              value={addMemberEmail}
+                              onChange={(e) => setAddMemberEmail(e.target.value)}
+                              className="flex-1 px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                              placeholder="email@superead.com"
+                            />
+                            <select
+                              value={addMemberRole}
+                              onChange={(e) => setAddMemberRole(e.target.value)}
+                              className="px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                            >
+                              <option value="agent" className="bg-slate-800">💼 Satışçı</option>
+                              <option value="educator" className="bg-slate-800">📚 Eğitmen</option>
+                            </select>
+                          </div>
+                          <div className="flex gap-2">
+                            <input
+                              type="tel"
+                              value={addMemberPhone}
+                              onChange={(e) => setAddMemberPhone(e.target.value)}
+                              className="flex-1 px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                              placeholder="Telefon (opsiyonel)"
+                            />
+                            <input
+                              type="text"
+                              value={addMemberIban}
+                              onChange={(e) => setAddMemberIban(e.target.value)}
+                              className="flex-1 px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                              placeholder="IBAN (opsiyonel)"
+                            />
+                            <button
+                              onClick={() => handleAddMember(team.id)}
+                              className="px-3 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition"
+                            >
+                              Ekle
+                            </button>
+                            <button
+                              onClick={() => {
+                                setAddMemberTeamId(null);
+                                setAddMemberPhone("");
+                                setAddMemberIban("");
+                              }}
+                              className="px-3 py-2 bg-slate-600 text-white rounded-lg text-sm hover:bg-slate-700 transition"
+                            >
+                              İptal
+                            </button>
+                          </div>
                         </div>
                       ) : (
                         <button
@@ -1833,6 +2018,127 @@ export default function AdminPage() {
             ))}
           </div>
         )}
+
+        {/* Günlük Takip Tab */}
+        {tab === "daily" && <DailyTracking />}
+
+        {/* Conversion / Dönüşüm Tab */}
+        {tab === "conversion" && (() => {
+          const kommoData = kommoView === "daily" ? kommoDailyData : kommoMonthlyData;
+          return (
+          <div className="space-y-6">
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-4">
+                  <h3 className="text-lg font-bold text-white">📈 Dönüşüm Oranları</h3>
+                  <div className="flex bg-white/5 rounded-lg p-0.5">
+                    <button
+                      onClick={() => setKommoView("daily")}
+                      className={`px-3 py-1.5 text-xs rounded-md transition ${kommoView === "daily" ? "bg-purple-600 text-white" : "text-slate-400 hover:text-white"}`}
+                    >
+                      Günlük
+                    </button>
+                    <button
+                      onClick={() => setKommoView("monthly")}
+                      className={`px-3 py-1.5 text-xs rounded-md transition ${kommoView === "monthly" ? "bg-purple-600 text-white" : "text-slate-400 hover:text-white"}`}
+                    >
+                      Aylık
+                    </button>
+                  </div>
+                </div>
+                <button
+                  onClick={loadKommo}
+                  disabled={kommoLoading}
+                  className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {kommoLoading ? "Yükleniyor..." : "🔄 Yenile"}
+                </button>
+              </div>
+
+              {kommoLoading && kommoData.length === 0 ? (
+                <div className="text-center text-slate-400 py-8">Kommo verileri yükleniyor...</div>
+              ) : kommoData.length === 0 ? (
+                <div className="text-center text-slate-400 py-8">
+                  <p>Kommo API bağlantısı yapılamadı veya veri bulunamadı.</p>
+                  <p className="text-xs mt-2">KOMMO_TOKEN env değişkeninin Railway&apos;de tanımlı olduğundan emin olun.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-5 gap-4 text-xs text-slate-400 px-3 pb-2 border-b border-white/10">
+                    <span>Kommo Hesabı</span>
+                    <span>SuperTracker Eşleşme</span>
+                    <span className="text-center">Toplam Lead</span>
+                    <span className="text-center">Kazanılan</span>
+                    <span className="text-center">Dönüşüm %</span>
+                  </div>
+                  {kommoData.map((ku) => (
+                    <div key={ku.kommoUserId} className="grid grid-cols-5 gap-4 bg-white/5 rounded-lg px-3 py-3 items-center">
+                      <span className="text-white text-sm font-medium">{ku.kommoUserName}</span>
+                      <span className={`text-sm ${ku.superTrackerUser ? "text-green-400" : "text-yellow-400"}`}>
+                        {ku.superTrackerUser ? ku.superTrackerUser.name : "⚠️ Eşleşme yok"}
+                      </span>
+                      <span className="text-center text-white text-sm font-medium">{ku.totalLeads}</span>
+                      <span className="text-center text-green-400 text-sm font-medium">{ku.wonLeads}</span>
+                      <div className="text-center">
+                        <span className={`text-sm font-bold ${
+                          ku.conversionRate >= 20 ? "text-green-400" :
+                          ku.conversionRate >= 10 ? "text-yellow-400" :
+                          "text-red-400"
+                        }`}>
+                          %{ku.conversionRate}
+                        </span>
+                        {ku.totalLeads > 0 && (
+                          <div className="w-full bg-white/10 rounded-full h-1.5 mt-1">
+                            <div
+                              className={`h-1.5 rounded-full ${
+                                ku.conversionRate >= 20 ? "bg-green-400" :
+                                ku.conversionRate >= 10 ? "bg-yellow-400" :
+                                "bg-red-400"
+                              }`}
+                              style={{ width: `${Math.min(ku.conversionRate, 100)}%` }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+
+                  <div className="grid grid-cols-5 gap-4 bg-purple-600/20 border border-purple-500/30 rounded-lg px-3 py-3 items-center mt-4">
+                    <span className="text-white text-sm font-bold">TOPLAM</span>
+                    <span></span>
+                    <span className="text-center text-white text-sm font-bold">
+                      {kommoData.reduce((s, k) => s + k.totalLeads, 0)}
+                    </span>
+                    <span className="text-center text-green-400 text-sm font-bold">
+                      {kommoData.reduce((s, k) => s + k.wonLeads, 0)}
+                    </span>
+                    <span className="text-center text-white text-sm font-bold">
+                      %{kommoData.reduce((s, k) => s + k.totalLeads, 0) > 0
+                        ? Math.round((kommoData.reduce((s, k) => s + k.wonLeads, 0) / kommoData.reduce((s, k) => s + k.totalLeads, 0)) * 100)
+                        : 0}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-6 p-4 bg-blue-600/10 border border-blue-500/20 rounded-xl">
+                <h4 className="text-sm font-medium text-blue-300 mb-2">💡 Kommo Eşleştirme</h4>
+                <p className="text-xs text-slate-400">
+                  Takımlar sekmesinde her üyenin yanındaki &quot;🔗 Kommo Eşle&quot; butonuna tıklayarak Kommo User ID&apos;sini girin.
+                  Kommo User ID&apos;leri:
+                </p>
+                <div className="mt-2 space-y-1">
+                  {kommoUsers.map((ku) => (
+                    <span key={ku.id} className="inline-block bg-white/5 text-xs text-slate-300 px-2 py-1 rounded mr-2">
+                      {ku.name}: <span className="text-blue-400 font-mono">{ku.id}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+          );
+        })()}
       </div>
     </div>
   );
@@ -1849,6 +2155,7 @@ const TYPE_LABELS: Record<string, string> = {
   individual: "Bireysel",
   educator: "Eğitmen",
   instructor: "Eğitmen",
+  birebir: "Birebir",
 };
 
 interface MonthSale {
