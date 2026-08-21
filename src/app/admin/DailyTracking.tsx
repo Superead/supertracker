@@ -20,6 +20,7 @@ interface DayRow {
   isEveningManual: boolean;
   autoMorning: number;
   autoEvening: number;
+  excludedCount: number;
   note: string | null;
   calls: CallEntry[];
 }
@@ -316,6 +317,11 @@ export default function DailyTracking() {
                       <>
                         <span className="text-xs text-slate-500">
                           Kommo: 09:30 → {day.autoMorning} • 18:30 → {day.autoEvening}
+                          {day.excludedCount > 0 && (
+                            <span className="text-amber-400/80 ml-2">
+                              ({day.excludedCount} destek hattı mesajı sayılmadı)
+                            </span>
+                          )}
                         </span>
                         <button
                           onClick={() => {

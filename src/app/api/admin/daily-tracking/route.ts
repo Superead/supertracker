@@ -12,6 +12,14 @@ const TURKEY_OFFSET_SEC = 3 * 3600;
 const MORNING_MINUTE = 9 * 60 + 30;  // 09:30
 const EVENING_MINUTE = 18 * 60 + 30; // 18:30
 
+// Channels that are not new leads. 165365 is the WhatsApp support line
+// (waba:1262349336963234), live since 18 August — people writing in for
+// help on an existing purchase, not prospects.
+const EXCLUDED_SOURCE_IDS = (process.env.KOMMO_EXCLUDED_SOURCE_IDS || "165365")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
 function canAccess(role: string) {
   return role === "admin";
 }
@@ -36,14 +44,15 @@ async function fetchKommoDailyCounts(year: number, month: number) {
   const fromTs = Math.floor(Date.UTC(year, month - 1, 1, 0, 0, 0) / 1000) - TURKEY_OFFSET_SEC;
   const toTs = Math.floor(Date.UTC(year, month - 1, lastDay, 23, 59, 59) / 1000) - TURKEY_OFFSET_SEC;
 
-  const counts: Record<string, { morning: number; evening: number; allDay: number }> = {};
+  const counts: Record<string, { morning: number; evening: number; allDay: number; excluded: number }> = {};
 
   let page = 1;
   while (page <= 60) {
+    // with=source_id is required — the field is omitted from the default response
     const data = await kommoFetch(
-      `/leads?filter[pipeline_id]=${PIPELINE_ID}&filter[created_at][from]=${fromTs}&filter[created_at][to]=${toTs}&limit=250&page=${page}`
+      `/leads?filter[pipeline_id]=${PIPELINE_ID}&filter[created_at][from]=${fromTs}&filter[created_at][to]=${toTs}&limit=250&page=${page}&with=source_id`
     );
-    const leads: Array<{ created_at: number }> = data?._embedded?.leads || [];
+    const leads: Array<{ created_at: number; source_id?: number }> = data?._embedded?.leads || [];
 
     for (const lead of leads) {
       // Shift into Turkish time so the UTC getters read as local wall-clock values
@@ -52,7 +61,13 @@ async function fetchKommoDailyCounts(year: number, month: number) {
       const key = `${year}-${String(month).padStart(2, "0")}-${day}`;
       const minuteOfDay = tr.getUTCHours() * 60 + tr.getUTCMinutes();
 
-      if (!counts[key]) counts[key] = { morning: 0, evening: 0, allDay: 0 };
+      if (!counts[key]) counts[key] = { morning: 0, evening: 0, allDay: 0, excluded: 0 };
+
+      if (EXCLUDED_SOURCE_IDS.includes(String(lead.source_id))) {
+        counts[key].excluded++;
+        continue;
+      }
+
       counts[key].allDay++;
       if (minuteOfDay <= EVENING_MINUTE) counts[key].evening++;
       if (minuteOfDay <= MORNING_MINUTE) counts[key].morning++;
@@ -87,7 +102,7 @@ export async function GET(request: NextRequest) {
     prisma.callDuration.findMany({ where: { date: { startsWith: monthStr } } }),
   ]);
 
-  let kommo: Record<string, { morning: number; evening: number; allDay: number }> = {};
+  let kommo: Record<string, { morning: number; evening: number; allDay: number; excluded: number }> = {};
   let kommoError: string | null = null;
   try {
     kommo = await fetchKommoDailyCounts(year, month);
@@ -106,7 +121,7 @@ export async function GET(request: NextRequest) {
     const date = `${monthStr}-${String(d).padStart(2, "0")}`;
     if (date > todayStr) continue;
 
-    const auto = kommo[date] || { morning: 0, evening: 0, allDay: 0 };
+    const auto = kommo[date] || { morning: 0, evening: 0, allDay: 0, excluded: 0 };
     const ov = overrideMap.get(date);
 
     const morning = ov?.morningCount ?? auto.morning;
@@ -124,6 +139,7 @@ export async function GET(request: NextRequest) {
       isEveningManual: ov?.eveningCount != null,
       autoMorning: auto.morning,
       autoEvening: auto.evening,
+      excludedCount: auto.excluded,
       note: ov?.note || null,
       calls: agents.map((a) => {
         const cd = durationMap.get(`${date}|${a.id}`);

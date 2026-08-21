@@ -12,8 +12,8 @@ export interface AuthUser {
   teamId: string | null;
 }
 
-export function signToken(user: AuthUser): string {
-  return jwt.sign(user, JWT_SECRET, { expiresIn: "7d" });
+export function signToken(user: AuthUser, expiresIn: string = "7d"): string {
+  return jwt.sign(user, JWT_SECRET, { expiresIn: expiresIn as jwt.SignOptions["expiresIn"] });
 }
 
 export function verifyToken(token: string): AuthUser | null {
