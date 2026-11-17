@@ -61,6 +61,14 @@ export async function createCalendarEvent(params: {
       start: { dateTime: startDateTime, timeZone: "Europe/Istanbul" },
       end: { dateTime: endDateTime, timeZone: "Europe/Istanbul" },
       attendees,
+      // Takvim sahibinin bildirimleri; davetliler kendi takvim varsayılanlarına göre bildirim alır.
+      reminders: {
+        useDefault: false,
+        overrides: [
+          { method: "email", minutes: 24 * 60 },
+          { method: "popup", minutes: 60 },
+        ],
+      },
       conferenceData: {
         createRequest: {
           requestId: `supertracker-${Date.now()}`,
@@ -75,6 +83,26 @@ export async function createCalendarEvent(params: {
     meetLink: res.data.hangoutLink || null,
     htmlLink: res.data.htmlLink || null,
   };
+}
+
+/** Dersi başka gün/saate taşır; davetlilere güncelleme gider. */
+export async function updateCalendarEventTime(eventId: string, date: string, time: string, durationMinutes = 60) {
+  if (!REFRESH_TOKEN) return;
+  const auth = getOAuth2Client();
+  const calendar = google.calendar({ version: "v3", auth });
+  const startDateTime = `${date}T${time}:00+03:00`;
+  const endTR = new Date(new Date(startDateTime).getTime() + durationMinutes * 60000 + 3 * 3600000);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const endDateTime = `${endTR.getUTCFullYear()}-${pad(endTR.getUTCMonth() + 1)}-${pad(endTR.getUTCDate())}T${pad(endTR.getUTCHours())}:${pad(endTR.getUTCMinutes())}:00+03:00`;
+  await calendar.events.patch({
+    calendarId: "primary",
+    eventId,
+    sendUpdates: "all",
+    requestBody: {
+      start: { dateTime: startDateTime, timeZone: "Europe/Istanbul" },
+      end: { dateTime: endDateTime, timeZone: "Europe/Istanbul" },
+    },
+  });
 }
 
 export async function deleteCalendarEvent(eventId: string) {

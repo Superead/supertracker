@@ -140,6 +140,177 @@ function ReadingPanel({ studentId }: { studentId: string }) {
   );
 }
 
+interface PlannedLesson {
+  id: string;
+  lessonNumber: number;
+  date: string;
+  time: string;
+  status: string;
+  meetLink: string | null;
+  reminderSentAt: string | null;
+  reminderError: string | null;
+}
+
+const GUNLER = [
+  { v: 1, ad: "Pzt" }, { v: 2, ad: "Sal" }, { v: 3, ad: "Çar" }, { v: 4, ad: "Per" },
+  { v: 5, ad: "Cum" }, { v: 6, ad: "Cmt" }, { v: 0, ad: "Paz" },
+];
+const GUN_TAM = ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"];
+
+function trTarih(d: string) {
+  const [y, m, g] = d.split("-").map(Number);
+  return `${String(g).padStart(2, "0")}.${String(m).padStart(2, "0")}.${y} ${GUN_TAM[new Date(Date.UTC(y, m - 1, g)).getUTCDay()]}`;
+}
+
+function SchedulePanel({ studentId, remaining, onChanged }: { studentId: string; remaining: number; onChanged: () => void }) {
+  const [lessons, setLessons] = useState<PlannedLesson[]>([]);
+  const [days, setDays] = useState<number[]>([]);
+  const [time, setTime] = useState("");
+  const [startDate, setStartDate] = useState(() => new Date(Date.now() + 3 * 3600000).toISOString().slice(0, 10));
+  const [saving, setSaving] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [movingId, setMovingId] = useState<string | null>(null);
+  const [moveDate, setMoveDate] = useState("");
+  const [moveTime, setMoveTime] = useState("");
+
+  const [reloadKey, setReloadKey] = useState(0);
+  const load = () => setReloadKey((k) => k + 1);
+
+  useEffect(() => {
+    let active = true;
+    fetch(`/api/education/schedule?studentId=${studentId}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: PlannedLesson[]) => { if (active) setLessons(data); });
+    return () => { active = false; };
+  }, [studentId, reloadKey]);
+
+  const upcoming = lessons.filter((l) => l.status === "scheduled");
+
+  async function createSchedule() {
+    if (!days.length || !time || !startDate) { alert("Gün, saat ve başlangıç tarihi seçin"); return; }
+    if (upcoming.length && !confirm("Mevcut programdaki yapılmamış dersler silinip yeniden oluşturulacak. Devam edilsin mi?")) return;
+    setSaving(true);
+    const res = await fetch("/api/education/schedule", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ studentId, days, time, startDate }),
+    });
+    setSaving(false);
+    if (!res.ok) { alert((await res.json()).error || "Hata"); return; }
+    setShowForm(false);
+    load();
+    onChanged();
+  }
+
+  async function moveLesson(id: string) {
+    const res = await fetch("/api/education/schedule", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, date: moveDate, time: moveTime }),
+    });
+    if (!res.ok) { alert((await res.json()).error || "Hata"); return; }
+    setMovingId(null);
+    load();
+  }
+
+  async function cancelLesson(id: string) {
+    if (!confirm("Bu ders iptal edilsin mi? Takvim etkinliği de silinir.")) return;
+    const res = await fetch("/api/education/schedule", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    if (!res.ok) { alert((await res.json()).error || "Hata"); return; }
+    load();
+  }
+
+  const inputCls = "px-2 py-1.5 bg-white/10 border border-white/20 rounded-lg text-white text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none";
+
+  return (
+    <div className="p-3 bg-amber-600/10 border border-amber-500/20 rounded-xl mb-4">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-sm text-amber-300 font-medium">🗓️ Ders Programı</p>
+        {remaining > 0 && (
+          <button onClick={() => setShowForm(!showForm)} className="text-xs px-3 py-1 rounded-lg bg-amber-600/30 text-amber-200 hover:bg-amber-600/50">
+            {upcoming.length ? "Programı değiştir" : "+ Program oluştur"}
+          </button>
+        )}
+      </div>
+
+      {showForm && (
+        <div className="space-y-2 mb-3 p-3 bg-white/5 rounded-lg">
+          <div className="flex gap-1 flex-wrap">
+            {GUNLER.map((g) => (
+              <button key={g.v} type="button"
+                onClick={() => setDays((p) => (p.includes(g.v) ? p.filter((x) => x !== g.v) : [...p, g.v]))}
+                className={`px-2.5 py-1 rounded-lg text-xs ${days.includes(g.v) ? "bg-amber-500 text-slate-900 font-bold" : "bg-white/10 text-slate-300"}`}>
+                {g.ad}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-3 items-end flex-wrap">
+            <div>
+              <p className="text-xs text-slate-500 mb-1">Saat</p>
+              <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className={inputCls} />
+            </div>
+            <div>
+              <p className="text-xs text-slate-500 mb-1">Başlangıç tarihi</p>
+              <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={inputCls} />
+            </div>
+            <button onClick={createSchedule} disabled={saving}
+              className="px-4 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-medium hover:bg-amber-700 disabled:opacity-50">
+              {saving ? "Oluşturuluyor..." : `${remaining} dersi planla`}
+            </button>
+          </div>
+          <p className="text-[11px] text-slate-500">
+            Her ders için Meet linkli takvim daveti oluşur. Ders günü saat 09:00&apos;da veliye WhatsApp hatırlatması gider (0533 destek hattı).
+          </p>
+        </div>
+      )}
+
+      {lessons.length === 0 ? (
+        <p className="text-xs text-slate-500">Henüz program yok.</p>
+      ) : (
+        <div className="space-y-1">
+          {lessons.map((l) => (
+            <div key={l.id} className={`flex items-center gap-2 text-xs rounded-lg px-2 py-1.5 ${l.status === "scheduled" ? "bg-white/5" : "bg-white/[0.02] opacity-60"}`}>
+              <span className="w-6 text-center font-bold text-amber-300">{l.lessonNumber}</span>
+              {movingId === l.id ? (
+                <>
+                  <input type="date" value={moveDate} onChange={(e) => setMoveDate(e.target.value)} className={inputCls} />
+                  <input type="time" value={moveTime} onChange={(e) => setMoveTime(e.target.value)} className={inputCls} />
+                  <button onClick={() => moveLesson(l.id)} className="px-2 py-1 bg-amber-600 text-white rounded-lg">Kaydet</button>
+                  <button onClick={() => setMovingId(null)} className="px-2 py-1 bg-white/10 text-slate-400 rounded-lg">Vazgeç</button>
+                </>
+              ) : (
+                <>
+                  <span className={`text-white ${l.status === "cancelled" ? "line-through" : ""}`}>{trTarih(l.date)} — {l.time}</span>
+                  {l.status === "done" && <span className="text-green-400">✓ yapıldı</span>}
+                  {l.status === "cancelled" && <span className="text-red-400">iptal</span>}
+                  {l.status === "scheduled" && l.reminderSentAt && <span className="text-green-400" title="WhatsApp hatırlatması gönderildi">💬 hatırlatıldı</span>}
+                  {l.status === "scheduled" && !l.reminderSentAt && l.reminderError && (
+                    <span className="text-red-400" title={l.reminderError}>⚠️ hatırlatma gitmedi</span>
+                  )}
+                  <span className="flex-1" />
+                  {l.meetLink && l.status !== "cancelled" && (
+                    <a href={l.meetLink} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300">📹</a>
+                  )}
+                  {l.status === "scheduled" && (
+                    <>
+                      <button onClick={() => { setMovingId(l.id); setMoveDate(l.date); setMoveTime(l.time); }} className="text-slate-400 hover:text-white">Taşı</button>
+                      <button onClick={() => cancelLesson(l.id)} className="text-red-400/60 hover:text-red-400">İptal</button>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const STATUS_MAP: Record<string, { label: string; color: string; bg: string }> = {
   pending: { label: "Beklemede", color: "text-slate-400", bg: "bg-slate-500/20" },
   planned: { label: "Planlandı", color: "text-blue-400", bg: "bg-blue-500/20" },
@@ -721,6 +892,7 @@ export default function EgitimPage() {
                 {isOpen && (
                   <div className="mt-4 space-y-3">
                     <ReadingPanel studentId={s.id} />
+                    <SchedulePanel studentId={s.id} remaining={s.totalLessons - s.completedLessons} onChanged={loadData} />
                     {/* Add lesson form */}
                     {s.completedLessons < s.totalLessons && (
                       <div className="bg-green-600/10 border border-green-500/20 rounded-xl p-4">
@@ -1241,6 +1413,7 @@ export default function EgitimPage() {
                         )}
 
                         <ReadingPanel studentId={s.id} />
+                        <SchedulePanel studentId={s.id} remaining={s.totalLessons - s.completedLessons} onChanged={loadData} />
 
                         {/* Lesson Controls */}
                         <div className="flex items-center gap-3 mb-4 p-3 bg-white/5 rounded-xl">

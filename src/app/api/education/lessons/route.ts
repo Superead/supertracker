@@ -54,7 +54,17 @@ export async function POST(request: NextRequest) {
   let meetLink: string | null = null;
   let calendarEventId: string | null = null;
 
-  if (time) {
+  // Bu ders programda planlandıysa takvim etkinliği zaten var; yenisini açma, planı "yapıldı" yap.
+  const plan = await prisma.plannedLesson.findFirst({
+    where: { studentId, lessonNumber: newLessonNumber, status: "scheduled" },
+  });
+  if (plan) {
+    meetLink = plan.meetLink;
+    calendarEventId = plan.calendarEventId;
+    await prisma.plannedLesson.update({ where: { id: plan.id }, data: { status: "done" } });
+  }
+
+  if (time && !plan) {
     try {
       const educatorName = educator?.name || "Admin";
       const calResult = await createCalendarEvent({
@@ -140,7 +150,13 @@ export async function DELETE(request: NextRequest) {
   const student = await prisma.student.findUnique({ where: { id: studentId } });
   if (!student) return Response.json({ error: "Öğrenci bulunamadı" }, { status: 404 });
 
-  if (log.calendarEventId) {
+  // Ders programdan geldiyse takvim etkinliği plana aittir: silme, planı tekrar "planlandı" yap.
+  const plan = log.calendarEventId
+    ? await prisma.plannedLesson.findFirst({ where: { studentId, calendarEventId: log.calendarEventId, status: "done" } })
+    : null;
+  if (plan) {
+    await prisma.plannedLesson.update({ where: { id: plan.id }, data: { status: "scheduled" } });
+  } else if (log.calendarEventId) {
     try {
       await deleteCalendarEvent(log.calendarEventId);
     } catch (e) {
