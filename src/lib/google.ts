@@ -29,6 +29,9 @@ export async function createCalendarEvent(params: {
   time: string;
   durationMinutes?: number;
   attendeeEmails?: string[];
+  calendarId?: string;
+  /** false: NOTIFY_EMAIL davetli olarak eklenmez. */
+  notify?: boolean;
 }) {
   if (!REFRESH_TOKEN) return null;
 
@@ -46,13 +49,13 @@ export async function createCalendarEvent(params: {
     .filter(Boolean)
     .map((email) => ({ email }));
 
-  const notifyEmail = process.env.NOTIFY_EMAIL;
+  const notifyEmail = params.notify === false ? null : process.env.NOTIFY_EMAIL;
   if (notifyEmail && !attendees.find((a) => a.email === notifyEmail)) {
     attendees.push({ email: notifyEmail });
   }
 
   const res = await calendar.events.insert({
-    calendarId: "primary",
+    calendarId: params.calendarId || "primary",
     conferenceDataVersion: 1,
     sendUpdates: "all",
     requestBody: {
@@ -105,13 +108,48 @@ export async function updateCalendarEventTime(eventId: string, date: string, tim
   });
 }
 
-export async function deleteCalendarEvent(eventId: string) {
+export async function deleteCalendarEvent(eventId: string, calendarId = "primary") {
   if (!REFRESH_TOKEN) return;
   const auth = getOAuth2Client();
   const calendar = google.calendar({ version: "v3", auth });
   try {
-    await calendar.events.delete({ calendarId: "primary", eventId });
+    await calendar.events.delete({ calendarId, eventId, sendUpdates: "all" });
   } catch {
     // event may already be deleted
   }
+}
+
+/** Takvimin adını döndürür (erişim yoksa hata fırlatır). */
+export async function getCalendarName(calendarId: string): Promise<string | null> {
+  if (!REFRESH_TOKEN) throw new Error("Google Takvim bağlı değil");
+  const calendar = google.calendar({ version: "v3", auth: getOAuth2Client() });
+  const res = await calendar.events.list({ calendarId, maxResults: 1 });
+  return res.data.summary || null;
+}
+
+/**
+ * Bir günün dolu aralıkları (Türkiye saati, dakika cinsinden 0–1440).
+ * Saatli ve "meşgul" görünen etkinlikler sayılır; tüm gün etkinlikleri ve "boş" işaretliler sayılmaz.
+ */
+export async function getBusyIntervals(calendarId: string, date: string): Promise<{ start: number; end: number; title: string }[]> {
+  if (!REFRESH_TOKEN) throw new Error("Google Takvim bağlı değil");
+  const calendar = google.calendar({ version: "v3", auth: getOAuth2Client() });
+  const dayStart = new Date(`${date}T00:00:00+03:00`).getTime();
+  const res = await calendar.events.list({
+    calendarId,
+    timeMin: new Date(dayStart).toISOString(),
+    timeMax: new Date(dayStart + 24 * 3600000).toISOString(),
+    singleEvents: true,
+    orderBy: "startTime",
+    maxResults: 250,
+  });
+  const out: { start: number; end: number; title: string }[] = [];
+  for (const e of res.data.items || []) {
+    if (e.status === "cancelled" || e.transparency === "transparent") continue;
+    if (!e.start?.dateTime || !e.end?.dateTime) continue; // tüm gün etkinliği
+    const s = (new Date(e.start.dateTime).getTime() - dayStart) / 60000;
+    const en = (new Date(e.end.dateTime).getTime() - dayStart) / 60000;
+    out.push({ start: Math.max(0, s), end: Math.min(1440, en), title: e.summary || "" });
+  }
+  return out;
 }

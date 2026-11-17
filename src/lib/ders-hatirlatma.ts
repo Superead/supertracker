@@ -23,7 +23,7 @@ const CF_LINK = 3043914;
 const GONDERIM_SAATI = "09:00";
 const MAX_DENEME = 3;
 
-async function kommo<T>(method: string, path: string, body?: unknown, base = "/api/v4", retried = false): Promise<T | null> {
+export async function kommo<T>(method: string, path: string, body?: unknown, base = "/api/v4", retried = false): Promise<T | null> {
   if (!KOMMO_TOKEN) throw new Error("KOMMO_TOKEN not configured");
   const res = await fetch(`https://${KOMMO_SUBDOMAIN}.kommo.com${base}${path}`, {
     method,
@@ -57,7 +57,7 @@ function simdiTR() {
 
 type Kisi = { id: number; custom_fields_values?: { field_code?: string; values: { value: string }[] }[] | null };
 
-async function kisiBulVeyaAc(tel: string, ad: string): Promise<number> {
+export async function kisiBulVeyaAc(tel: string, ad: string): Promise<number> {
   const son10 = tel.slice(-10);
   const sonuc = await kommo<{ _embedded: { contacts: Kisi[] } }>("GET", `/contacts?query=${son10}&limit=50`);
   for (const k of sonuc?._embedded.contacts ?? []) {

@@ -16,6 +16,10 @@ export async function register() {
     const { dersHatirlatmalariniGonder } = await import("./lib/ders-hatirlatma");
     gorevler.push({ ad: "ders-hatirlatma", calistir: () => dersHatirlatmalariniGonder() });
   }
+  if (process.env.RANDEVU_HATIRLATMA_AKTIF !== "0") {
+    const { randevuHatirlatmalariniGonder } = await import("./lib/randevu");
+    gorevler.push({ ad: "randevu-hatirlatma", calistir: randevuHatirlatmalariniGonder });
+  }
   if (!gorevler.length) return;
 
   let calisiyor = false;
