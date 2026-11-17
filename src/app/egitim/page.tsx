@@ -11,6 +11,7 @@ interface Educator {
   userId: string | null;
   user?: { id: string; email: string } | null;
   rating?: { avg: number; count: number } | null;
+  calendarEmail?: string | null;
 }
 
 interface Student {
@@ -169,6 +170,9 @@ function SchedulePanel({ studentId, remaining, onChanged }: { studentId: string;
   const [startDate, setStartDate] = useState(() => new Date(Date.now() + 3 * 3600000).toISOString().slice(0, 10));
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [showSingle, setShowSingle] = useState(false);
+  const [singleDate, setSingleDate] = useState("");
+  const [singleTime, setSingleTime] = useState("");
   const [movingId, setMovingId] = useState<string | null>(null);
   const [moveDate, setMoveDate] = useState("");
   const [moveTime, setMoveTime] = useState("");
@@ -185,6 +189,23 @@ function SchedulePanel({ studentId, remaining, onChanged }: { studentId: string;
   }, [studentId, reloadKey]);
 
   const upcoming = lessons.filter((l) => l.status === "scheduled");
+  const canAddOne = upcoming.length < remaining;
+
+  async function addOne() {
+    if (!singleDate || !singleTime) { alert("Tarih ve saat seçin"); return; }
+    setSaving(true);
+    const res = await fetch("/api/education/schedule", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ studentId, date: singleDate, time: singleTime }),
+    });
+    setSaving(false);
+    if (!res.ok) { alert((await res.json()).error || "Hata"); return; }
+    setSingleDate("");
+    setShowSingle(false);
+    load();
+    onChanged();
+  }
 
   async function createSchedule() {
     if (!days.length || !time || !startDate) { alert("Gün, saat ve başlangıç tarihi seçin"); return; }
@@ -230,12 +251,39 @@ function SchedulePanel({ studentId, remaining, onChanged }: { studentId: string;
     <div className="p-3 bg-amber-600/10 border border-amber-500/20 rounded-xl mb-4">
       <div className="flex items-center justify-between mb-2">
         <p className="text-sm text-amber-300 font-medium">🗓️ Ders Programı</p>
-        {remaining > 0 && (
-          <button onClick={() => setShowForm(!showForm)} className="text-xs px-3 py-1 rounded-lg bg-amber-600/30 text-amber-200 hover:bg-amber-600/50">
-            {upcoming.length ? "Programı değiştir" : "+ Program oluştur"}
-          </button>
-        )}
+        <div className="flex gap-2">
+          {canAddOne && (
+            <button onClick={() => { setShowSingle(!showSingle); setShowForm(false); }} className="text-xs px-3 py-1 rounded-lg bg-amber-600 text-white hover:bg-amber-700">
+              + Ders ekle
+            </button>
+          )}
+          {remaining > 0 && (
+            <button onClick={() => { setShowForm(!showForm); setShowSingle(false); }} className="text-xs px-3 py-1 rounded-lg bg-amber-600/20 text-amber-200 hover:bg-amber-600/40">
+              Toplu planla
+            </button>
+          )}
+        </div>
       </div>
+
+      {showSingle && (
+        <div className="flex gap-3 items-end flex-wrap mb-3 p-3 bg-white/5 rounded-lg">
+          <div>
+            <p className="text-xs text-slate-500 mb-1">Tarih</p>
+            <input type="date" value={singleDate} onChange={(e) => setSingleDate(e.target.value)} className={inputCls} />
+          </div>
+          <div>
+            <p className="text-xs text-slate-500 mb-1">Saat</p>
+            <input type="time" value={singleTime} onChange={(e) => setSingleTime(e.target.value)} className={inputCls} />
+          </div>
+          <button onClick={addOne} disabled={saving}
+            className="px-4 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-medium hover:bg-amber-700 disabled:opacity-50">
+            {saving ? "Ekleniyor..." : "Dersi planla"}
+          </button>
+          <p className="text-[11px] text-slate-500 w-full">
+            Öğrenciyle konuştuğunuz günü ve saati girin. Meet linkli takvim daveti gider; ders günü 09:00&apos;da veliye WhatsApp hatırlatması gönderilir.
+          </p>
+        </div>
+      )}
 
       {showForm && (
         <div className="space-y-2 mb-3 p-3 bg-white/5 rounded-lg">
@@ -263,7 +311,7 @@ function SchedulePanel({ studentId, remaining, onChanged }: { studentId: string;
             </button>
           </div>
           <p className="text-[11px] text-slate-500">
-            Her ders için Meet linkli takvim daveti oluşur. Ders günü saat 09:00&apos;da veliye WhatsApp hatırlatması gider (0533 destek hattı).
+            Kalan derslerin hepsini seçilen günlere dağıtır; planlanmış dersler silinip yeniden oluşturulur. Dersleri tek tek planlamak için &quot;+ Ders ekle&quot;yi kullanın.
           </p>
         </div>
       )}
@@ -274,7 +322,7 @@ function SchedulePanel({ studentId, remaining, onChanged }: { studentId: string;
         <div className="space-y-1">
           {lessons.map((l) => (
             <div key={l.id} className={`flex items-center gap-2 text-xs rounded-lg px-2 py-1.5 ${l.status === "scheduled" ? "bg-white/5" : "bg-white/[0.02] opacity-60"}`}>
-              <span className="w-6 text-center font-bold text-amber-300">{l.lessonNumber}</span>
+              <span className="w-6 text-center font-bold text-amber-300">{l.status === "cancelled" ? "×" : l.lessonNumber}</span>
               {movingId === l.id ? (
                 <>
                   <input type="date" value={moveDate} onChange={(e) => setMoveDate(e.target.value)} className={inputCls} />
@@ -353,7 +401,7 @@ export default function EgitimPage() {
   const [newPassword, setNewPassword] = useState("");
   const [showEducatorList, setShowEducatorList] = useState(false);
   const [editingEducatorId, setEditingEducatorId] = useState<string | null>(null);
-  const [editEducator, setEditEducator] = useState({ name: "", phone: "", iban: "" });
+  const [editEducator, setEditEducator] = useState({ name: "", phone: "", iban: "", calendarEmail: "" });
   const [lessonLogs, setLessonLogs] = useState<Record<string, LessonLog[]>>({});
   const [showLogsFor, setShowLogsFor] = useState<string | null>(null);
   const [lessonDate, setLessonDate] = useState(new Date().toISOString().split("T")[0]);
@@ -603,14 +651,14 @@ export default function EgitimPage() {
 
   function startEditEducator(ed: Educator) {
     setEditingEducatorId(ed.id);
-    setEditEducator({ name: ed.name, phone: ed.phone || "", iban: ed.iban || "" });
+    setEditEducator({ name: ed.name, phone: ed.phone || "", iban: ed.iban || "", calendarEmail: ed.calendarEmail || "" });
   }
 
   async function handleSaveEducator(id: string) {
     const res = await fetch("/api/admin/educators", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, name: editEducator.name, phone: editEducator.phone || null, iban: editEducator.iban || null }),
+      body: JSON.stringify({ id, name: editEducator.name, phone: editEducator.phone || null, iban: editEducator.iban || null, calendarEmail: editEducator.calendarEmail || null }),
     });
     if (res.ok) {
       setEditingEducatorId(null);
@@ -1142,6 +1190,9 @@ export default function EgitimPage() {
                         <input value={editEducator.iban} onChange={(e) => setEditEducator({ ...editEducator, iban: e.target.value })} placeholder="IBAN"
                           className="px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none" />
                       </div>
+                      <input type="email" value={editEducator.calendarEmail} onChange={(e) => setEditEducator({ ...editEducator, calendarEmail: e.target.value })}
+                        placeholder="Takvim e-postası (ders davetleri bu adrese gider)"
+                        className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none" />
                       <div className="flex gap-2">
                         <button onClick={() => handleSaveEducator(ed.id)} className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs hover:bg-green-700">Kaydet</button>
                         <button onClick={() => setEditingEducatorId(null)} className="px-3 py-1.5 bg-white/10 text-slate-400 rounded-lg text-xs">İptal</button>

@@ -45,7 +45,7 @@ export async function GET() {
     where: { isActive: true },
     select: {
       id: true, name: true, userId: true,
-      phone: canSeeDetails, iban: canSeeDetails,
+      phone: canSeeDetails, iban: canSeeDetails, calendarEmail: canSeeDetails,
       user: canSeeDetails ? { select: { id: true, email: true } } : false,
     },
     orderBy: { name: "asc" },

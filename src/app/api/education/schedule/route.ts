@@ -9,7 +9,8 @@ export const maxDuration = 120;
 /*
  * Birebir öğrencinin ders programı (ileride yapılacak dersler).
  * GET    ?studentId=…                       → planlanan dersler
- * POST   { studentId, days, time, startDate } → kalan dersleri seçilen günlere dağıtır (eski planı değiştirir)
+ * POST   { studentId, date, time }            → bir sonraki dersi ekler (eğitmen dersleri tek tek planlar)
+ * POST   { studentId, days, time, startDate } → kalan dersleri seçilen günlere toplu dağıtır (eski planı değiştirir)
  * PATCH  { id, date, time }                  → tek dersi taşır
  * DELETE { id }                              → tek dersi iptal eder
  * Ders yapıldığında eğitmen yine "Ders Ekle" der; o numaralı plan "done" olur (lessons route).
@@ -27,12 +28,35 @@ async function yetki(studentId: string) {
   });
   const student = await prisma.student.findUnique({
     where: { id: studentId },
-    include: { educator: { select: { name: true, user: { select: { email: true } } } } },
+    include: { educator: { select: { name: true, calendarEmail: true, user: { select: { email: true } } } } },
   });
   if (!student) return { error: Response.json({ error: "Öğrenci bulunamadı" }, { status: 404 }) };
   const ok = user.role === "admin" || educator?.isInternal || (educator && student.educatorId === educator.id);
   if (!ok) return { error: Response.json({ error: "Forbidden" }, { status: 403 }) };
   return { user, educator, student };
+}
+
+/** Takvim davetinin gideceği adresler: veli/öğrenci e-postası + eğitmenin gerçek e-postası. */
+function davetliler(student: { email: string | null; educator: { calendarEmail: string | null; user: { email: string } | null } | null }) {
+  const girisEpostasi = student.educator?.user?.email || "";
+  // Sistem giriş adresleri (…@egitmen.superead.com) gerçek posta kutusu değil; davet gönderme.
+  const egitmen = student.educator?.calendarEmail || (girisEpostasi.endsWith("@egitmen.superead.com") ? "" : girisEpostasi);
+  return [student.email, egitmen].filter(Boolean) as string[];
+}
+
+/** Planlanan dersleri tarih sırasına göre yeniden numaralar (tamamlananlardan sonra gelir). */
+async function yenidenNumarala(studentId: string) {
+  const student = await prisma.student.findUnique({ where: { id: studentId }, select: { completedLessons: true } });
+  const planli = await prisma.plannedLesson.findMany({
+    where: { studentId, status: "scheduled" },
+    orderBy: [{ date: "asc" }, { time: "asc" }],
+  });
+  for (let i = 0; i < planli.length; i++) {
+    const no = (student?.completedLessons || 0) + 1 + i;
+    if (planli[i].lessonNumber !== no) {
+      await prisma.plannedLesson.update({ where: { id: planli[i].id }, data: { lessonNumber: no } });
+    }
+  }
 }
 
 /** Türkiye saatine göre bugünün tarihi (YYYY-MM-DD). */
@@ -53,11 +77,46 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const { studentId, days, time, startDate } = await request.json();
+  const { studentId, days, time, startDate, date } = await request.json();
   if (!studentId) return Response.json({ error: "studentId gerekli" }, { status: 400 });
   const y = await yetki(studentId);
   if (y.error) return y.error;
   const { student } = y;
+
+  // Tek ders ekleme: { studentId, date, time }
+  if (date !== undefined) {
+    if (!DATE_RE.test(date || "") || !TIME_RE.test(time || "")) {
+      return Response.json({ error: "Tarih ve saat gerekli" }, { status: 400 });
+    }
+    if (date < bugunTR()) return Response.json({ error: "Tarih geçmişte olamaz" }, { status: 400 });
+    const planli = await prisma.plannedLesson.count({ where: { studentId, status: "scheduled" } });
+    if (student.completedLessons + planli >= student.totalLessons) {
+      return Response.json({ error: `${student.totalLessons} dersin hepsi planlanmış veya yapılmış` }, { status: 400 });
+    }
+    const no = student.completedLessons + planli + 1;
+    const egitmen = student.educator?.name || "Eğitmen";
+    let meetLink: string | null = null;
+    let calendarEventId: string | null = null;
+    try {
+      const cal = await createCalendarEvent({
+        summary: `Hızlı okuma dersi: ${student.studentName} - ${egitmen}`,
+        description: `Süper Hızlı Okuma birebir ders\nÖğrenci: ${student.studentName}\nEğitmen: ${egitmen}`,
+        date,
+        time,
+        attendeeEmails: davetliler(student),
+      });
+      meetLink = cal?.meetLink || null;
+      calendarEventId = cal?.eventId || null;
+    } catch (e) {
+      console.error("Google Calendar etkinliği oluşturulamadı:", e);
+    }
+    const yeni = await prisma.plannedLesson.create({
+      data: { studentId, lessonNumber: no, date, time, meetLink, calendarEventId },
+    });
+    await yenidenNumarala(studentId);
+    if (student.status === "pending") await prisma.student.update({ where: { id: studentId }, data: { status: "planned" } });
+    return Response.json(yeni, { status: 201 });
+  }
 
   const gunler = Array.isArray(days) ? [...new Set(days.map(Number).filter((d) => d >= 0 && d <= 6))] : [];
   if (!gunler.length) return Response.json({ error: "En az bir gün seçin" }, { status: 400 });
@@ -84,7 +143,6 @@ export async function POST(request: NextRequest) {
   }
 
   const egitmen = student.educator?.name || "Eğitmen";
-  const davetliler = [student.email, student.educator?.user?.email].filter(Boolean) as string[];
   const olusan = [];
   for (let i = 0; i < tarihler.length; i++) {
     const no = student.completedLessons + 1 + i;
@@ -92,11 +150,11 @@ export async function POST(request: NextRequest) {
     let calendarEventId: string | null = null;
     try {
       const cal = await createCalendarEvent({
-        summary: `Ders ${no}/${student.totalLessons}: ${student.studentName} - ${egitmen}`,
-        description: `Süper Hızlı Okuma birebir ders #${no}\nÖğrenci: ${student.studentName}\nEğitmen: ${egitmen}`,
+        summary: `Hızlı okuma dersi: ${student.studentName} - ${egitmen}`,
+        description: `Süper Hızlı Okuma birebir ders\nÖğrenci: ${student.studentName}\nEğitmen: ${egitmen}`,
         date: tarihler[i],
         time,
-        attendeeEmails: davetliler,
+        attendeeEmails: davetliler(student),
       });
       meetLink = cal?.meetLink || null;
       calendarEventId = cal?.eventId || null;
@@ -150,6 +208,7 @@ export async function PATCH(request: NextRequest) {
       ...(tarihDegisti ? { reminderSentAt: null, reminderError: null, reminderAttempts: 0 } : {}),
     },
   });
+  await yenidenNumarala(plan.studentId);
   return Response.json(updated);
 }
 
@@ -162,5 +221,6 @@ export async function DELETE(request: NextRequest) {
   if (plan.status !== "scheduled") return Response.json({ error: "Sadece planlanan ders iptal edilebilir" }, { status: 400 });
   if (plan.calendarEventId) await deleteCalendarEvent(plan.calendarEventId).catch(() => {});
   const updated = await prisma.plannedLesson.update({ where: { id }, data: { status: "cancelled" } });
+  await yenidenNumarala(plan.studentId);
   return Response.json(updated);
 }

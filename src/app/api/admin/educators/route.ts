@@ -65,6 +65,7 @@ export async function PUT(request: NextRequest) {
       ...(name !== undefined ? { name } : {}),
       phone: phone || null,
       iban: iban || null,
+      ...("calendarEmail" in body ? { calendarEmail: (body.calendarEmail || "").trim().toLowerCase() || null } : {}),
       // Only touch the user link when explicitly included in the request
       ...("userId" in body ? { userId: body.userId || null } : {}),
     },
