@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { createCalendarEvent, deleteCalendarEvent, updateCalendarEventTime } from "@/lib/google";
+import { egitmenTakvimi, birebirMusaitlik, DERS_DK } from "@/lib/randevu";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -9,6 +10,7 @@ export const maxDuration = 120;
 /*
  * Birebir öğrencinin ders programı (ileride yapılacak dersler).
  * GET    ?studentId=…                       → planlanan dersler
+ * GET    ?studentId=…&musaitlik=YYYY-MM-DD   → eğitmenin o günkü boş 45 dk saatleri (hoca takvimi bağlıysa)
  * POST   { studentId, date, time }            → bir sonraki dersi ekler (eğitmen dersleri tek tek planlar)
  * POST   { studentId, days, time, startDate } → kalan dersleri seçilen günlere toplu dağıtır (eski planı değiştirir)
  * PATCH  { id, date, time }                  → tek dersi taşır
@@ -65,11 +67,50 @@ function bugunTR() {
   return new Date(Date.now() + 3 * 3600000).toISOString().slice(0, 10);
 }
 
+type OgrenciT = Parameters<typeof davetliler>[0] & { studentName: string; educatorId: string | null; educator: { name: string; calendarEmail: string | null; user: { email: string } | null } | null };
+
+/**
+ * Bir ders için takvim etkinliği açar. Eğitmen bir hoca takvimiyle eşleşiyorsa etkinlik o takvimde açılır
+ * (gelişim randevularıyla çakışmasın diye) ve hocanın sabit Meet linki varsa o kullanılır; yoksa bilgi@ ana takvim.
+ */
+async function dersEtkinligi(student: OgrenciT, date: string, time: string) {
+  const egitmen = student.educator?.name || "Eğitmen";
+  const takvim = await egitmenTakvimi(student.educatorId);
+  try {
+    const cal = await createCalendarEvent({
+      summary: `Hızlı okuma dersi: ${student.studentName} - ${egitmen}`,
+      description: `Süper Hızlı Okuma birebir ders (${DERS_DK} dk)\nÖğrenci: ${student.studentName}\nEğitmen: ${egitmen}${takvim?.meetLink ? `\nDers linki: ${takvim.meetLink}` : ""}`,
+      date,
+      time,
+      durationMinutes: DERS_DK,
+      attendeeEmails: davetliler(student),
+      calendarId: takvim?.calendarId,
+      fixedMeetLink: takvim?.meetLink,
+    });
+    return { meetLink: cal?.meetLink || null, calendarEventId: cal?.eventId || null, calendarId: cal ? takvim?.calendarId || null : null };
+  } catch (e) {
+    console.error("Google Calendar etkinliği oluşturulamadı:", e);
+    return { meetLink: null, calendarEventId: null, calendarId: null };
+  }
+}
+
 export async function GET(request: NextRequest) {
   const studentId = request.nextUrl.searchParams.get("studentId");
   if (!studentId) return Response.json({ error: "studentId gerekli" }, { status: 400 });
   const y = await yetki(studentId);
   if (y.error) return y.error;
+
+  // ?studentId=…&musaitlik=YYYY-MM-DD → eğitmenin o günkü boş 45 dakikalık saatleri
+  const gun = request.nextUrl.searchParams.get("musaitlik");
+  if (gun) {
+    if (!DATE_RE.test(gun) || gun < bugunTR()) return Response.json({ error: "Geçerli bir tarih seçin" }, { status: 400 });
+    if (!y.student.educatorId) return Response.json({ bagli: false, mesaj: "Öğrenciye eğitmen atanmamış" });
+    try {
+      return Response.json(await birebirMusaitlik(y.student.educatorId, gun));
+    } catch (e) {
+      return Response.json({ bagli: true, slots: [], hata: e instanceof Error ? e.message : String(e) });
+    }
+  }
   const lessons = await prisma.plannedLesson.findMany({
     where: { studentId },
     orderBy: [{ date: "asc" }, { time: "asc" }],
@@ -95,24 +136,9 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: `${student.totalLessons} dersin hepsi planlanmış veya yapılmış` }, { status: 400 });
     }
     const no = student.completedLessons + planli + 1;
-    const egitmen = student.educator?.name || "Eğitmen";
-    let meetLink: string | null = null;
-    let calendarEventId: string | null = null;
-    try {
-      const cal = await createCalendarEvent({
-        summary: `Hızlı okuma dersi: ${student.studentName} - ${egitmen}`,
-        description: `Süper Hızlı Okuma birebir ders\nÖğrenci: ${student.studentName}\nEğitmen: ${egitmen}`,
-        date,
-        time,
-        attendeeEmails: davetliler(student),
-      });
-      meetLink = cal?.meetLink || null;
-      calendarEventId = cal?.eventId || null;
-    } catch (e) {
-      console.error("Google Calendar etkinliği oluşturulamadı:", e);
-    }
+    const etkinlik = await dersEtkinligi(student, date, time);
     const yeni = await prisma.plannedLesson.create({
-      data: { studentId, lessonNumber: no, date, time, meetLink, calendarEventId },
+      data: { studentId, lessonNumber: no, date, time, ...etkinlik },
     });
     await yenidenNumarala(studentId);
     if (student.status === "pending") await prisma.student.update({ where: { id: studentId }, data: { status: "planned" } });
@@ -131,7 +157,7 @@ export async function POST(request: NextRequest) {
   // Eski planın henüz yapılmamış derslerini kaldır (takvimden de).
   const eskiler = await prisma.plannedLesson.findMany({ where: { studentId, status: "scheduled" } });
   for (const e of eskiler) {
-    if (e.calendarEventId) await deleteCalendarEvent(e.calendarEventId).catch(() => {});
+    if (e.calendarEventId) await deleteCalendarEvent(e.calendarEventId, e.calendarId || "primary").catch(() => {});
   }
   await prisma.plannedLesson.deleteMany({ where: { studentId, status: "scheduled" } });
 
@@ -143,28 +169,13 @@ export async function POST(request: NextRequest) {
     d.setUTCDate(d.getUTCDate() + 1);
   }
 
-  const egitmen = student.educator?.name || "Eğitmen";
   const olusan = [];
   for (let i = 0; i < tarihler.length; i++) {
     const no = student.completedLessons + 1 + i;
-    let meetLink: string | null = null;
-    let calendarEventId: string | null = null;
-    try {
-      const cal = await createCalendarEvent({
-        summary: `Hızlı okuma dersi: ${student.studentName} - ${egitmen}`,
-        description: `Süper Hızlı Okuma birebir ders\nÖğrenci: ${student.studentName}\nEğitmen: ${egitmen}`,
-        date: tarihler[i],
-        time,
-        attendeeEmails: davetliler(student),
-      });
-      meetLink = cal?.meetLink || null;
-      calendarEventId = cal?.eventId || null;
-    } catch (e) {
-      console.error("Google Calendar etkinliği oluşturulamadı:", e);
-    }
+    const etkinlik = await dersEtkinligi(student, tarihler[i], time);
     olusan.push(
       await prisma.plannedLesson.create({
-        data: { studentId, lessonNumber: no, date: tarihler[i], time, meetLink, calendarEventId },
+        data: { studentId, lessonNumber: no, date: tarihler[i], time, ...etkinlik },
       }),
     );
   }
@@ -194,7 +205,7 @@ export async function PATCH(request: NextRequest) {
 
   if (plan.calendarEventId) {
     try {
-      await updateCalendarEventTime(plan.calendarEventId, date, time);
+      await updateCalendarEventTime(plan.calendarEventId, date, time, DERS_DK, plan.calendarId || "primary");
     } catch (e) {
       console.error("Google Calendar etkinliği taşınamadı:", e);
     }
@@ -220,7 +231,7 @@ export async function DELETE(request: NextRequest) {
   const y = await yetki(plan.studentId);
   if (y.error) return y.error;
   if (plan.status !== "scheduled") return Response.json({ error: "Sadece planlanan ders iptal edilebilir" }, { status: 400 });
-  if (plan.calendarEventId) await deleteCalendarEvent(plan.calendarEventId).catch(() => {});
+  if (plan.calendarEventId) await deleteCalendarEvent(plan.calendarEventId, plan.calendarId || "primary").catch(() => {});
   const updated = await prisma.plannedLesson.update({ where: { id }, data: { status: "cancelled" } });
   await yenidenNumarala(plan.studentId);
   return Response.json(updated);

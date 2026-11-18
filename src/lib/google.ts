@@ -95,7 +95,7 @@ export async function createCalendarEvent(params: {
 }
 
 /** Dersi başka gün/saate taşır; davetlilere güncelleme gider. */
-export async function updateCalendarEventTime(eventId: string, date: string, time: string, durationMinutes = 60) {
+export async function updateCalendarEventTime(eventId: string, date: string, time: string, durationMinutes = 60, calendarId = "primary") {
   if (!REFRESH_TOKEN) return;
   const auth = getOAuth2Client();
   const calendar = google.calendar({ version: "v3", auth });
@@ -104,7 +104,7 @@ export async function updateCalendarEventTime(eventId: string, date: string, tim
   const pad = (n: number) => String(n).padStart(2, "0");
   const endDateTime = `${endTR.getUTCFullYear()}-${pad(endTR.getUTCMonth() + 1)}-${pad(endTR.getUTCDate())}T${pad(endTR.getUTCHours())}:${pad(endTR.getUTCMinutes())}:00+03:00`;
   await calendar.events.patch({
-    calendarId: "primary",
+    calendarId,
     eventId,
     sendUpdates: "all",
     requestBody: {

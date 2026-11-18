@@ -69,10 +69,10 @@ export type Musaitlik = {
  * Her çeyrek saatte (:00 :15 :30 :45) başlayan ve hiçbir dolu aralıkla çakışmayan 15 dakikalık
  * randevu saatleri. Randevular arka arkaya verilebilir; mola yoktur.
  */
-export function bosSaatler(dolu: { start: number; end: number }[], bas: number, son: number): string[] {
+export function bosSaatler(dolu: { start: number; end: number }[], bas: number, son: number, sure = SURE_DK): string[] {
   const slots: string[] = [];
-  for (let s = Math.ceil(bas / SURE_DK) * SURE_DK; s + SURE_DK <= son; s += SURE_DK) {
-    const e = s + SURE_DK;
+  for (let s = Math.ceil(bas / 15) * 15; s + sure <= son; s += 15) {
+    const e = s + sure;
     if (!dolu.some((d) => d.start < e && d.end > s)) slots.push(saat(s));
   }
   return slots;
@@ -95,6 +95,8 @@ export async function musaitlikHesapla(date: string, aralik?: { bas?: string; so
           select: { time: true, durationMin: true },
         });
         for (const r of bizim) dolu.push({ start: dk(r.time), end: dk(r.time) + r.durationMin, title: "randevu" });
+        // Hocanın birebir dersleri (takvimine düşmemiş eski dersler dahil) de dolu.
+        if (t.teacherEmail) dolu.push(...(await birebirDolu(t.teacherEmail, date)));
 
         const slots = bosSaatler(dolu, bas, son);
         return { calendarRefId: t.id, teacherName: t.teacherName, slots };
@@ -105,11 +107,48 @@ export async function musaitlikHesapla(date: string, aralik?: { bas?: string; so
   );
 }
 
+export const DERS_DK = 45; // birebir ders süresi
+
+/** Takvim e-postası bu adres olan eğitmen(ler)in o günkü planlı birebir dersleri. */
+export async function birebirDolu(email: string, date: string) {
+  const dersler = await prisma.plannedLesson.findMany({
+    where: { date, status: "scheduled", student: { educator: { calendarEmail: email.toLowerCase() } } },
+    select: { time: true },
+  });
+  return dersler.map((d) => ({ start: dk(d.time), end: dk(d.time) + DERS_DK, title: "birebir" }));
+}
+
+/** Eğitmenin gelişim randevu takvimi (eğitmen kaydındaki takvim e-postası = hoca takvimindeki e-posta). */
+export async function egitmenTakvimi(educatorId: string | null | undefined) {
+  if (!educatorId) return null;
+  const e = await prisma.educator.findUnique({ where: { id: educatorId }, select: { calendarEmail: true } });
+  if (!e?.calendarEmail) return null;
+  return prisma.appointmentCalendar.findFirst({ where: { teacherEmail: e.calendarEmail.toLowerCase(), isActive: true } });
+}
+
+/** Birebir ders için eğitmenin o günkü boş 45 dakikalık başlangıç saatleri (çeyrek saat düzeni). */
+export async function birebirMusaitlik(educatorId: string, date: string) {
+  const takvim = await egitmenTakvimi(educatorId);
+  if (!takvim) return { bagli: false as const };
+  const dolu = await getBusyIntervals(takvim.calendarId, date);
+  const randevular = await prisma.appointment.findMany({
+    where: { calendarRefId: takvim.id, date, status: "scheduled" },
+    select: { time: true, durationMin: true },
+  });
+  for (const r of randevular) dolu.push({ start: dk(r.time), end: dk(r.time) + r.durationMin, title: "randevu" });
+  if (takvim.teacherEmail) dolu.push(...(await birebirDolu(takvim.teacherEmail, date)));
+  const simdi = simdiTR();
+  const bas = Math.max(GUN_BASI, date === simdi.tarih ? dk(simdi.saat) + 1 : 0);
+  return { bagli: true as const, takvimAdi: takvim.calendarName || takvim.teacherName, slots: bosSaatler(dolu, bas, GUN_SONU, DERS_DK) };
+}
+
 /** Seçilen saat hâlâ boş mu (randevu kaydetmeden hemen önce tekrar kontrol). */
 export async function saatBosMu(calendarRefId: string, calendarId: string, date: string, time: string) {
   const s = dk(time);
   const e = s + SURE_DK;
   const dolu = await getBusyIntervals(calendarId, date);
+  const takvim = await prisma.appointmentCalendar.findUnique({ where: { id: calendarRefId }, select: { teacherEmail: true } });
+  if (takvim?.teacherEmail) dolu.push(...(await birebirDolu(takvim.teacherEmail, date)));
   if (dolu.some((d) => d.start < e && d.end > s)) return false;
   const cakisan = await prisma.appointment.count({
     where: { calendarRefId, date, status: "scheduled", time: { gt: saat(Math.max(0, s - SURE_DK)), lt: saat(e) } },

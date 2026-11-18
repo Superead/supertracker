@@ -174,6 +174,23 @@ function SchedulePanel({ studentId, total, completed, onChanged }: { studentId: 
   const [showSingle, setShowSingle] = useState(false);
   const [singleDate, setSingleDate] = useState("");
   const [singleTime, setSingleTime] = useState("");
+  const [slots, setSlots] = useState<string[] | null>(null);
+  const [slotMesaj, setSlotMesaj] = useState<string | null>(null);
+  const [slotYukleniyor, setSlotYukleniyor] = useState(false);
+
+  async function musaitlikGetir(gun: string) {
+    setSlots(null);
+    setSlotMesaj(null);
+    if (!gun) return;
+    setSlotYukleniyor(true);
+    const res = await fetch(`/api/education/schedule?studentId=${studentId}&musaitlik=${gun}`);
+    const d = await res.json();
+    setSlotYukleniyor(false);
+    if (!res.ok) { setSlotMesaj(d.error || "Hata"); return; }
+    if (!d.bagli) { setSlotMesaj(d.mesaj || "Eğitmenin takvimi bağlı değil; saati elle girin."); return; }
+    if (d.hata) { setSlotMesaj(`Takvim okunamadı: ${d.hata}`); return; }
+    setSlots(d.slots);
+  }
   const [movingId, setMovingId] = useState<string | null>(null);
   const [moveDate, setMoveDate] = useState("");
   const [moveTime, setMoveTime] = useState("");
@@ -203,6 +220,7 @@ function SchedulePanel({ studentId, total, completed, onChanged }: { studentId: 
     setSaving(false);
     if (!res.ok) { alert((await res.json()).error || "Hata"); return; }
     setSingleDate("");
+    setSlots(null);
     setShowSingle(false);
     load();
     onChanged();
@@ -293,7 +311,7 @@ function SchedulePanel({ studentId, total, completed, onChanged }: { studentId: 
         <div className="flex gap-3 items-end flex-wrap mb-3 p-3 bg-white/5 rounded-lg">
           <div>
             <p className="text-xs text-slate-500 mb-1">Tarih</p>
-            <input type="date" value={singleDate} onChange={(e) => setSingleDate(e.target.value)} className={inputCls} />
+            <input type="date" value={singleDate} onChange={(e) => { setSingleDate(e.target.value); musaitlikGetir(e.target.value); }} className={inputCls} />
           </div>
           <div>
             <p className="text-xs text-slate-500 mb-1">Saat</p>
@@ -303,6 +321,21 @@ function SchedulePanel({ studentId, total, completed, onChanged }: { studentId: 
             className="px-4 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-medium hover:bg-amber-700 disabled:opacity-50">
             {saving ? "Ekleniyor..." : "Dersi planla"}
           </button>
+          {slotYukleniyor && <p className="text-xs text-slate-400 w-full">Takvime bakılıyor...</p>}
+          {slotMesaj && <p className="text-xs text-slate-400 w-full">{slotMesaj}</p>}
+          {slots && (
+            <div className="w-full">
+              <p className="text-xs text-slate-400 mb-1">Takviminizdeki boş 45 dakikalık saatler {slots.length === 0 && "— bu gün boş saat yok"}</p>
+              <div className="flex flex-wrap gap-1.5">
+                {slots.map((t) => (
+                  <button key={t} type="button" onClick={() => setSingleTime(t)}
+                    className={`px-2.5 py-1 rounded-lg text-xs ${singleTime === t ? "bg-amber-500 text-slate-900 font-bold" : "bg-amber-500/20 text-amber-200 hover:bg-amber-500/40"}`}>
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <p className="text-[11px] text-slate-500 w-full">
             Öğrenciyle konuştuğunuz günü ve saati girin. Meet linkli takvim daveti gider; ders günü 09:00&apos;da veliye WhatsApp hatırlatması gönderilir.
           </p>
