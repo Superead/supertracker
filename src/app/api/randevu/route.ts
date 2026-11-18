@@ -2,7 +2,7 @@ import { NextRequest, after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createCalendarEvent, deleteCalendarEvent } from "@/lib/google";
 import { trTelefon } from "@/lib/ders-hatirlatma";
-import { randevuYetkisi, saatBosMu, haftaAraligi, onayGonder, yarinTR, simdiTR, SURE_DK } from "@/lib/randevu";
+import { randevuYetkisi, saatBosMu, haftaAraligi, onayGonder, simdiTR, SURE_DK } from "@/lib/randevu";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -39,7 +39,10 @@ export async function POST(request: NextRequest) {
   if (!phone) return Response.json({ error: "Geçerli bir telefon numarası girin" }, { status: 400 });
   if (!studentName) return Response.json({ error: "Öğrenci adı gerekli" }, { status: 400 });
   if (!DATE_RE.test(b.date || "") || !TIME_RE.test(b.time || "")) return Response.json({ error: "Tarih ve saat gerekli" }, { status: 400 });
-  if (b.date < yarinTR()) return Response.json({ error: "Randevu en erken yarına verilebilir" }, { status: 400 });
+  const simdi = simdiTR();
+  if (b.date < simdi.tarih || (b.date === simdi.tarih && b.time <= simdi.saat)) {
+    return Response.json({ error: "Geçmiş bir saate randevu verilemez" }, { status: 400 });
+  }
 
   const takvim = await prisma.appointmentCalendar.findUnique({ where: { id: b.calendarRefId } });
   if (!takvim?.isActive) return Response.json({ error: "Eğitmen takvimi bulunamadı" }, { status: 400 });
@@ -87,6 +90,8 @@ export async function POST(request: NextRequest) {
     data: {
       studentName, phone, email, date: b.date, time: b.time, durationMin: SURE_DK,
       meetLink, calendarEventId, note: b.note || null, createdByName: user.name, calendarRefId: takvim.id,
+      // Bugüne verilen randevuda sabah hatırlatması geçmiştir; öğrenciye yalnız onay gider.
+      ...(b.date === simdi.tarih ? { reminderSentAt: new Date() } : {}),
     },
   });
   after(() => onayGonder(randevu.id));

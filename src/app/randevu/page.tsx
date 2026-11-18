@@ -31,7 +31,6 @@ function trTarih(d: string) {
   return `${String(g).padStart(2, "0")}.${String(m).padStart(2, "0")} ${GUN[new Date(Date.UTC(y, m - 1, g)).getUTCDay()]}`;
 }
 const bugunTR = () => new Date(Date.now() + 3 * 3600000).toISOString().slice(0, 10);
-const yarinTR = () => new Date(Date.now() + 27 * 3600000).toISOString().slice(0, 10);
 
 const DURUM: Record<string, { label: string; cls: string }> = {
   scheduled: { label: "Bekliyor", cls: "bg-blue-500/20 text-blue-300" },
@@ -54,7 +53,7 @@ export default function RandevuPage() {
   const [email, setEmail] = useState("");
   const [note, setNote] = useState("");
   const [ogrenci, setOgrenci] = useState<{ kisi: { name: string; email: string | null } | null; gecmis: Randevu[] } | null>(null);
-  const [date, setDate] = useState(yarinTR);
+  const [date, setDate] = useState(bugunTR);
   const [bas, setBas] = useState("");
   const [son, setSon] = useState("");
   const [musaitlik, setMusaitlik] = useState<Musaitlik[] | null>(null);
@@ -285,7 +284,7 @@ export default function RandevuPage() {
           <div className="flex gap-2 flex-wrap items-end">
             <div>
               <p className="text-xs text-slate-400 mb-1">Gün</p>
-              <input type="date" min={yarinTR()} value={date} onChange={(e) => { setDate(e.target.value); setMusaitlik(null); }} className={input} />
+              <input type="date" min={bugunTR()} value={date} onChange={(e) => { setDate(e.target.value); setMusaitlik(null); }} className={input} />
             </div>
             <div>
               <p className="text-xs text-slate-400 mb-1">Öğrencinin uygun olduğu saat (isteğe bağlı)</p>

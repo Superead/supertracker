@@ -4,13 +4,12 @@ import { getCurrentUser } from "@/lib/auth";
 import { kommo, kisiBulVeyaAc } from "@/lib/ders-hatirlatma";
 
 /*
- * Gelişim randevuları (app öğrencileri, 15 dk görüşme + 5 dk mola). Birebir derslerden ayrıdır.
+ * Gelişim randevuları (app öğrencileri, 15 dk görüşme, arka arkaya verilebilir). Birebir derslerden ayrıdır.
  * Randevuyu destek ekibi verir; sistem hocaların Google takvimlerinden boş saatleri çıkarır,
  * hocanın takvimine Meet linkli etkinlik açar, 0533'ten WhatsApp onayı ve sabah hatırlatması gönderir.
  */
 
 export const SURE_DK = 15;
-export const MOLA_DK = 5;
 const GUN_BASI = 9 * 60; // 09:00
 const GUN_SONU = 23 * 60; // 23:00
 
@@ -43,10 +42,6 @@ export function simdiTR() {
   return { tarih: iso.slice(0, 10), saat: iso.slice(11, 16) };
 }
 
-export function yarinTR() {
-  return new Date(Date.now() + 27 * 3600000).toISOString().slice(0, 10);
-}
-
 /** "18 Kasım Çarşamba 15:15" */
 export function trZaman(date: string, time: string) {
   const [y, m, g] = date.split("-").map(Number);
@@ -70,42 +65,24 @@ export type Musaitlik = {
   error?: string;
 };
 
-/** 30 dakika ve daha kısa etkinlikler görüşme sayılır (araya mola gerekir); yemek, mesai vb. uzun etkinlikler sayılmaz. */
-const GORUSME_MAX_DK = 30;
-const molali = (d: { start: number; end: number }) =>
-  d.end - d.start <= GORUSME_MAX_DK ? { start: d.start - MOLA_DK, end: d.end + MOLA_DK } : { start: d.start, end: d.end };
-
 /**
- * Dolu aralıklar dışında kalan boşluklara baştan itibaren 15 dk randevu + 5 dk mola yerleştirir.
- * Görüşmelerin (≤30 dk) önünde ve arkasında 5 dk mola kalır; yemek/mesai gibi uzun etkinliklere
- * mola eklenmez, randevu bittiği dakikada başlayabilir.
+ * Her çeyrek saatte (:00 :15 :30 :45) başlayan ve hiçbir dolu aralıkla çakışmayan 15 dakikalık
+ * randevu saatleri. Randevular arka arkaya verilebilir; mola yoktur.
  */
 export function bosSaatler(dolu: { start: number; end: number }[], bas: number, son: number): string[] {
-  const sirali = [...dolu].map(molali).sort((a, b) => a.start - b.start);
-  const bosluklar: [number, number][] = [];
-  let imlec = bas;
-  for (const d of sirali) {
-    if (d.end <= imlec) continue;
-    if (d.start > imlec) bosluklar.push([imlec, Math.min(d.start, son)]);
-    imlec = Math.max(imlec, d.end);
-    if (imlec >= son) break;
-  }
-  if (imlec < son) bosluklar.push([imlec, son]);
   const slots: string[] = [];
-  for (const [a, b] of bosluklar) {
-    let s = Math.ceil(a / 5) * 5;
-    while (s + SURE_DK <= b) {
-      slots.push(saat(s));
-      s += SURE_DK + MOLA_DK;
-    }
+  for (let s = Math.ceil(bas / SURE_DK) * SURE_DK; s + SURE_DK <= son; s += SURE_DK) {
+    const e = s + SURE_DK;
+    if (!dolu.some((d) => d.start < e && d.end > s)) slots.push(saat(s));
   }
   return slots;
 }
 
-/** Bir gün için her hocanın boş 15 dakikalık başlangıç saatleri (araya 5 dk mola). */
+/** Bir gün için her hocanın boş 15 dakikalık başlangıç saatleri; bugün için yalnız şu andan sonrası. */
 export async function musaitlikHesapla(date: string, aralik?: { bas?: string; son?: string }): Promise<Musaitlik[]> {
   const takvimler = await prisma.appointmentCalendar.findMany({ where: { isActive: true }, orderBy: { teacherName: "asc" } });
-  const bas = Math.max(GUN_BASI, aralik?.bas ? dk(aralik.bas) : 0);
+  const simdi = simdiTR();
+  const bas = Math.max(GUN_BASI, aralik?.bas ? dk(aralik.bas) : 0, date === simdi.tarih ? dk(simdi.saat) + 1 : 0);
   const son = Math.min(GUN_SONU, aralik?.son ? dk(aralik.son) : 1440);
 
   return Promise.all(
@@ -133,9 +110,9 @@ export async function saatBosMu(calendarRefId: string, calendarId: string, date:
   const s = dk(time);
   const e = s + SURE_DK;
   const dolu = await getBusyIntervals(calendarId, date);
-  if (dolu.map(molali).some((d) => d.start < e && d.end > s)) return false;
+  if (dolu.some((d) => d.start < e && d.end > s)) return false;
   const cakisan = await prisma.appointment.count({
-    where: { calendarRefId, date, status: "scheduled", time: { gt: saat(Math.max(0, s - SURE_DK - MOLA_DK)), lt: saat(e + MOLA_DK) } },
+    where: { calendarRefId, date, status: "scheduled", time: { gt: saat(Math.max(0, s - SURE_DK)), lt: saat(e) } },
   });
   return cakisan === 0;
 }
