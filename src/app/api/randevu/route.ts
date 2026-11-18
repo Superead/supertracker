@@ -72,12 +72,13 @@ export async function POST(request: NextRequest) {
     const cal = await createCalendarEvent({
       calendarId: takvim.calendarId,
       summary: `Gelişim görüşmesi: ${studentName}`,
-      description: `Süper Hızlı Okuma gelişim görüşmesi (${SURE_DK} dk)\nÖğrenci: ${studentName}\nTelefon: +${phone}${email ? `\nE-posta: ${email}` : ""}${b.note ? `\nNot: ${b.note}` : ""}\nRandevuyu veren: ${user.name}`,
+      description: `Süper Hızlı Okuma gelişim görüşmesi (${SURE_DK} dk)${takvim.meetLink ? `\nGörüşme linki: ${takvim.meetLink}` : ""}\nÖğrenci: ${studentName}\nTelefon: +${phone}${email ? `\nE-posta: ${email}` : ""}${b.note ? `\nNot: ${b.note}` : ""}\nRandevuyu veren: ${user.name}`,
       date: b.date,
       time: b.time,
       durationMinutes: SURE_DK,
       attendeeEmails: [email, takvim.teacherEmail].filter(Boolean) as string[],
       notify: false,
+      fixedMeetLink: takvim.meetLink,
     });
     meetLink = cal?.meetLink || null;
     calendarEventId = cal?.eventId || null;

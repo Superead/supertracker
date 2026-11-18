@@ -22,7 +22,7 @@ interface Randevu {
 }
 
 interface Musaitlik { calendarRefId: string; teacherName: string; slots: string[]; error?: string }
-interface Takvim { id: string; teacherName: string; teacherEmail: string | null; calendarId: string; calendarName: string | null; isActive: boolean }
+interface Takvim { id: string; teacherName: string; teacherEmail: string | null; meetLink: string | null; calendarId: string; calendarName: string | null; isActive: boolean }
 interface Kullanici { id: string; name: string; email: string; isActive: boolean }
 
 const GUN = ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"];
@@ -66,7 +66,8 @@ export default function RandevuPage() {
   const [showAyar, setShowAyar] = useState(false);
   const [takvimler, setTakvimler] = useState<Takvim[]>([]);
   const [kullanicilar, setKullanicilar] = useState<Kullanici[]>([]);
-  const [yeniTakvim, setYeniTakvim] = useState({ calendarId: "", teacherName: "", teacherEmail: "" });
+  const [yeniTakvim, setYeniTakvim] = useState({ calendarId: "", teacherName: "", teacherEmail: "", meetLink: "" });
+  const [duzenle, setDuzenle] = useState<{ id: string; teacherName: string; teacherEmail: string; meetLink: string } | null>(null);
   const [yeniKullanici, setYeniKullanici] = useState({ name: "", email: "", password: "" });
 
   useEffect(() => {
@@ -194,15 +195,27 @@ export default function RandevuPage() {
             <div>
               <h2 className="text-white font-semibold mb-1">Hoca takvimleri</h2>
               <p className="text-xs text-slate-400 mb-3">
-                Google Takvim → takvimin ⋮ menüsü → Ayarlar ve paylaşım → &quot;Takvimi entegre et&quot; → Takvim kimliği. Hoca e-postasına her randevunun daveti gider.
+                Google Takvim → takvimin ⋮ menüsü → Ayarlar ve paylaşım → &quot;Takvimi entegre et&quot; → Takvim kimliği. Hoca e-postasına her randevunun daveti gider. Sabit Meet linki girilen hocada randevulara hep o link verilir; boşsa her randevuya yeni link açılır.
               </p>
               <div className="space-y-2 mb-3">
-                {takvimler.map((t) => (
+                {takvimler.map((t) => duzenle?.id === t.id ? (
+                  <div key={t.id} className="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-2 text-sm flex-wrap">
+                    <input value={duzenle.teacherName} onChange={(e) => setDuzenle({ ...duzenle, teacherName: e.target.value })} placeholder="Hoca adı" className={input} />
+                    <input value={duzenle.teacherEmail} onChange={(e) => setDuzenle({ ...duzenle, teacherEmail: e.target.value })} placeholder="Hoca e-postası" className={input} />
+                    <input value={duzenle.meetLink} onChange={(e) => setDuzenle({ ...duzenle, meetLink: e.target.value })} placeholder="Sabit Meet linki (boşsa her randevuya yeni link)" className={`${input} flex-1 min-w-[260px]`} />
+                    <button onClick={async () => { if (await ayarKaydet({ action: "takvim-guncelle", ...duzenle })) setDuzenle(null); }}
+                      className="px-3 py-2 bg-purple-600 text-white rounded-lg text-xs hover:bg-purple-700">Kaydet</button>
+                    <button onClick={() => setDuzenle(null)} className="px-3 py-2 bg-white/10 text-slate-400 rounded-lg text-xs">Vazgeç</button>
+                  </div>
+                ) : (
                   <div key={t.id} className="flex items-center gap-3 bg-white/5 rounded-lg px-3 py-2 text-sm flex-wrap">
                     <span className="text-white font-medium">{t.teacherName}</span>
                     <span className="text-slate-400 text-xs">{t.teacherEmail || "e-posta yok"}</span>
+                    <span className="text-slate-400 text-xs">{t.meetLink ? `📹 ${t.meetLink.replace("https://", "")}` : "📹 her randevuya yeni link"}</span>
                     <span className="text-slate-500 text-xs">📅 {t.calendarName || t.calendarId.slice(0, 24) + "…"}</span>
                     <span className="flex-1" />
+                    <button onClick={() => setDuzenle({ id: t.id, teacherName: t.teacherName, teacherEmail: t.teacherEmail || "", meetLink: t.meetLink || "" })}
+                      className="text-xs px-2 py-1 rounded-lg bg-white/10 text-slate-300 hover:bg-white/20">Düzenle</button>
                     <button onClick={() => ayarKaydet({ action: "takvim-guncelle", id: t.id, isActive: !t.isActive })}
                       className={`text-xs px-2 py-1 rounded-lg ${t.isActive ? "bg-green-600/30 text-green-300" : "bg-white/10 text-slate-400"}`}>
                       {t.isActive ? "Aktif" : "Pasif"}
@@ -214,8 +227,9 @@ export default function RandevuPage() {
               <div className="flex gap-2 flex-wrap">
                 <input value={yeniTakvim.teacherName} onChange={(e) => setYeniTakvim({ ...yeniTakvim, teacherName: e.target.value })} placeholder="Hoca adı (boşsa takvim adından)" className={input} />
                 <input value={yeniTakvim.teacherEmail} onChange={(e) => setYeniTakvim({ ...yeniTakvim, teacherEmail: e.target.value })} placeholder="Hoca e-postası" className={input} />
+                <input value={yeniTakvim.meetLink} onChange={(e) => setYeniTakvim({ ...yeniTakvim, meetLink: e.target.value })} placeholder="Sabit Meet linki (isteğe bağlı)" className={input} />
                 <input value={yeniTakvim.calendarId} onChange={(e) => setYeniTakvim({ ...yeniTakvim, calendarId: e.target.value })} placeholder="Takvim kimliği" className={`${input} flex-1 min-w-[260px]`} />
-                <button onClick={async () => { if (await ayarKaydet({ action: "takvim", ...yeniTakvim })) setYeniTakvim({ calendarId: "", teacherName: "", teacherEmail: "" }); }}
+                <button onClick={async () => { if (await ayarKaydet({ action: "takvim", ...yeniTakvim })) setYeniTakvim({ calendarId: "", teacherName: "", teacherEmail: "", meetLink: "" }); }}
                   className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700">+ Takvim ekle</button>
               </div>
             </div>

@@ -9,11 +9,21 @@ export const dynamic = "force-dynamic";
 /*
  * Randevu ayarları (yalnız admin).
  * GET                                                   → hoca takvimleri + destek kullanıcıları
- * POST { action: "takvim", calendarId, teacherName, teacherEmail? } → hoca takvimi ekler (Google'dan adı doğrulanır)
- * POST { action: "takvim-guncelle", id, teacherName?, teacherEmail?, isActive? }
+ * POST { action: "takvim", calendarId, teacherName, teacherEmail?, meetLink? } → hoca takvimi ekler (Google'dan adı doğrulanır)
+ * POST { action: "takvim-guncelle", id, teacherName?, teacherEmail?, meetLink?, isActive? }
  * POST { action: "kullanici", name, email, password }  → destek kullanıcısı açar (rol: support)
  * POST { action: "kullanici-durum", id, isActive }
  */
+
+/** "https://meet.google.com/abc-defg-hij?pli=1" → "https://meet.google.com/abc-defg-hij" */
+function temizMeet(v: unknown): string | null | undefined {
+  if (v === undefined) return undefined;
+  const t = String(v || "").trim();
+  if (!t) return null;
+  const m = t.match(/meet\.google\.com\/([a-z]{3,4}-[a-z]{4}-[a-z]{3,4})/i);
+  if (!m) throw new Error("Geçerli bir Google Meet linki girin (meet.google.com/xxx-xxxx-xxx)");
+  return `https://meet.google.com/${m[1].toLowerCase()}`;
+}
 
 async function admin() {
   const user = await getCurrentUser();
@@ -34,6 +44,12 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   if (!(await admin())) return Response.json({ error: "Forbidden" }, { status: 403 });
   const b = await request.json();
+  let meetLink: string | null | undefined;
+  try {
+    meetLink = temizMeet(b.meetLink);
+  } catch (e) {
+    return Response.json({ error: (e as Error).message }, { status: 400 });
+  }
 
   if (b.action === "takvim") {
     const calendarId = String(b.calendarId || "").trim();
@@ -52,8 +68,8 @@ export async function POST(request: NextRequest) {
     if (!teacherName) teacherName = (calendarName || "").split(/\s+/)[0] || "Hoca";
     const t = await prisma.appointmentCalendar.upsert({
       where: { calendarId },
-      create: { calendarId, teacherName, teacherEmail: String(b.teacherEmail || "").trim().toLowerCase() || null, calendarName },
-      update: { teacherName, teacherEmail: String(b.teacherEmail || "").trim().toLowerCase() || null, calendarName, isActive: true },
+      create: { calendarId, teacherName, teacherEmail: String(b.teacherEmail || "").trim().toLowerCase() || null, calendarName, meetLink: meetLink ?? null },
+      update: { teacherName, teacherEmail: String(b.teacherEmail || "").trim().toLowerCase() || null, calendarName, isActive: true, ...(meetLink !== undefined ? { meetLink } : {}) },
     });
     return Response.json(t, { status: 201 });
   }
@@ -65,6 +81,7 @@ export async function POST(request: NextRequest) {
         ...(b.teacherName !== undefined ? { teacherName: String(b.teacherName).trim() } : {}),
         ...(b.teacherEmail !== undefined ? { teacherEmail: String(b.teacherEmail).trim().toLowerCase() || null } : {}),
         ...(b.isActive !== undefined ? { isActive: !!b.isActive } : {}),
+        ...(meetLink !== undefined ? { meetLink } : {}),
       },
     });
     return Response.json(t);

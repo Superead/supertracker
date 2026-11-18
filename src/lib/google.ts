@@ -32,6 +32,8 @@ export async function createCalendarEvent(params: {
   calendarId?: string;
   /** false: NOTIFY_EMAIL davetli olarak eklenmez. */
   notify?: boolean;
+  /** Verilirse yeni Meet açılmaz; bu sabit link etkinliğin konumuna ve açıklamasına yazılır. */
+  fixedMeetLink?: string | null;
 }) {
   if (!REFRESH_TOKEN) return null;
 
@@ -72,18 +74,22 @@ export async function createCalendarEvent(params: {
           { method: "popup", minutes: 60 },
         ],
       },
-      conferenceData: {
-        createRequest: {
-          requestId: `supertracker-${Date.now()}`,
-          conferenceSolutionKey: { type: "hangoutsMeet" },
-        },
-      },
+      ...(params.fixedMeetLink
+        ? { location: params.fixedMeetLink }
+        : {
+            conferenceData: {
+              createRequest: {
+                requestId: `supertracker-${Date.now()}`,
+                conferenceSolutionKey: { type: "hangoutsMeet" },
+              },
+            },
+          }),
     },
   });
 
   return {
     eventId: res.data.id,
-    meetLink: res.data.hangoutLink || null,
+    meetLink: params.fixedMeetLink || res.data.hangoutLink || null,
     htmlLink: res.data.htmlLink || null,
   };
 }
