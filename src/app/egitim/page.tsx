@@ -163,7 +163,8 @@ function trTarih(d: string) {
   return `${String(g).padStart(2, "0")}.${String(m).padStart(2, "0")}.${y} ${GUN_TAM[new Date(Date.UTC(y, m - 1, g)).getUTCDay()]}`;
 }
 
-function SchedulePanel({ studentId, remaining, onChanged }: { studentId: string; remaining: number; onChanged: () => void }) {
+function SchedulePanel({ studentId, total, completed, onChanged }: { studentId: string; total: number; completed: number; onChanged: () => void }) {
+  const remaining = total - completed;
   const [lessons, setLessons] = useState<PlannedLesson[]>([]);
   const [days, setDays] = useState<number[]>([]);
   const [time, setTime] = useState("");
@@ -245,12 +246,35 @@ function SchedulePanel({ studentId, remaining, onChanged }: { studentId: string;
     load();
   }
 
+  async function setPackage(value: number) {
+    if (value === total) return;
+    if (!confirm(`Paket ${value} ders olarak değiştirilsin mi?`)) return;
+    const res = await fetch("/api/education/schedule", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ studentId, totalLessons: value }),
+    });
+    if (!res.ok) { alert((await res.json()).error || "Hata"); return; }
+    onChanged();
+  }
+
   const inputCls = "px-2 py-1.5 bg-white/10 border border-white/20 rounded-lg text-white text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none";
 
   return (
     <div className="p-3 bg-amber-600/10 border border-amber-500/20 rounded-xl mb-4">
       <div className="flex items-center justify-between mb-2">
-        <p className="text-sm text-amber-300 font-medium">🗓️ Ders Programı</p>
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-amber-300 font-medium">🗓️ Ders Programı</p>
+          <label className="text-xs text-slate-400 flex items-center gap-1">
+            Paket:
+            <select value={total} onChange={(e) => setPackage(Number(e.target.value))}
+              className="px-2 py-1 bg-white/10 border border-white/20 rounded-lg text-white text-xs focus:outline-none">
+              {![10, 12].includes(total) && <option value={total}>{total} ders</option>}
+              <option value={12}>12 ders</option>
+              <option value={10}>10 ders (zihin haritası yok)</option>
+            </select>
+          </label>
+        </div>
         <div className="flex gap-2">
           {canAddOne && (
             <button onClick={() => { setShowSingle(!showSingle); setShowForm(false); }} className="text-xs px-3 py-1 rounded-lg bg-amber-600 text-white hover:bg-amber-700">
@@ -940,7 +964,7 @@ export default function EgitimPage() {
                 {isOpen && (
                   <div className="mt-4 space-y-3">
                     <ReadingPanel studentId={s.id} />
-                    <SchedulePanel studentId={s.id} remaining={s.totalLessons - s.completedLessons} onChanged={loadData} />
+                    <SchedulePanel studentId={s.id} total={s.totalLessons} completed={s.completedLessons} onChanged={loadData} />
                     {/* Add lesson form */}
                     {s.completedLessons < s.totalLessons && (
                       <div className="bg-green-600/10 border border-green-500/20 rounded-xl p-4">
@@ -1464,7 +1488,7 @@ export default function EgitimPage() {
                         )}
 
                         <ReadingPanel studentId={s.id} />
-                        <SchedulePanel studentId={s.id} remaining={s.totalLessons - s.completedLessons} onChanged={loadData} />
+                        <SchedulePanel studentId={s.id} total={s.totalLessons} completed={s.completedLessons} onChanged={loadData} />
 
                         {/* Lesson Controls */}
                         <div className="flex items-center gap-3 mb-4 p-3 bg-white/5 rounded-xl">

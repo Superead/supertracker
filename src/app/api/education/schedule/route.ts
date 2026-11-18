@@ -13,6 +13,7 @@ export const maxDuration = 120;
  * POST   { studentId, days, time, startDate } → kalan dersleri seçilen günlere toplu dağıtır (eski planı değiştirir)
  * PATCH  { id, date, time }                  → tek dersi taşır
  * DELETE { id }                              → tek dersi iptal eder
+ * PUT    { studentId, totalLessons }          → paket: 10 ya da 12 ders (öğrencinin eğitmeni de değiştirebilir)
  * Ders yapıldığında eğitmen yine "Ders Ekle" der; o numaralı plan "done" olur (lessons route).
  */
 
@@ -222,5 +223,27 @@ export async function DELETE(request: NextRequest) {
   if (plan.calendarEventId) await deleteCalendarEvent(plan.calendarEventId).catch(() => {});
   const updated = await prisma.plannedLesson.update({ where: { id }, data: { status: "cancelled" } });
   await yenidenNumarala(plan.studentId);
+  return Response.json(updated);
+}
+
+export async function PUT(request: NextRequest) {
+  const { studentId, totalLessons } = await request.json();
+  if (!studentId) return Response.json({ error: "studentId gerekli" }, { status: 400 });
+  const y = await yetki(studentId);
+  if (y.error) return y.error;
+  const toplam = Number(totalLessons);
+  if (![10, 12].includes(toplam)) return Response.json({ error: "Paket 10 ya da 12 ders olabilir" }, { status: 400 });
+  const planli = await prisma.plannedLesson.count({ where: { studentId, status: "scheduled" } });
+  const dolu = y.student.completedLessons + planli;
+  if (toplam < dolu) {
+    return Response.json({ error: `${dolu} ders yapılmış veya planlanmış; önce fazla dersleri iptal edin` }, { status: 400 });
+  }
+  const updated = await prisma.student.update({
+    where: { id: studentId },
+    data: {
+      totalLessons: toplam,
+      ...(y.student.completedLessons >= toplam ? { status: "completed" } : y.student.status === "completed" ? { status: "in_progress" } : {}),
+    },
+  });
   return Response.json(updated);
 }
