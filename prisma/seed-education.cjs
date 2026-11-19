@@ -72,7 +72,16 @@ async function main() {
   const educators = {};
   for (const ed of educatorData) {
     const existing = await prisma.educator.findFirst({ where: { name: ed.name } });
-    const shouldLink = educatorUserMap[ed.name] || null;
+    let shouldLink = educatorUserMap[ed.name] || null;
+    // Bir kullanıcı yalnız bir eğitmen kaydına bağlanabilir (userId benzersiz). Hesap başka bir
+    // eğitmen kaydına zaten bağlıysa (ör. ad panelden değiştirildi) bağlamayı atla, yoksa seed çöker.
+    if (shouldLink) {
+      const bagli = await prisma.educator.findUnique({ where: { userId: shouldLink }, select: { id: true, name: true } });
+      if (bagli && bagli.id !== existing?.id) {
+        console.log(`  ↷ ${ed.name}: hesap zaten "${bagli.name}" eğitmen kaydına bağlı, bağlama atlandı`);
+        shouldLink = null;
+      }
+    }
     const isInternal = internalEducators.has(ed.name);
 
     if (existing) {
@@ -170,7 +179,12 @@ async function main() {
   let created = 0;
   let skipped = 0;
 
-  for (const s of students) {
+  // Öğrenci listesi Ağustos 2026'daki ilk aktarım içindir. Tabloda öğrenci varsa aktarım yapılmış demektir;
+  // tekrar çalıştırmak sonradan pasife alınan ya da adı değiştirilen öğrencileri yeniden oluşturur.
+  const ogrenciVar = (await prisma.student.count()) > 0;
+  if (ogrenciVar) console.log("  ⏭ Öğrenci aktarımı daha önce yapılmış, atlandı");
+
+  for (const s of ogrenciVar ? [] : students) {
     // Skip LGS Grubu (row 35 - not a real student)
     const existing = await prisma.student.findFirst({
       where: { studentName: s.studentName, isActive: true },
@@ -225,10 +239,12 @@ async function main() {
     }
   }
 
-  // Fix roles: users linked to an educator record should have role "educator" (not "agent")
+  // Fix roles: external educator accounts linked to an educator record should have role "educator".
+  // Only @egitmen.superead.com accounts: internal educators (e.g. Buse, Elif) may also sell with an agent account.
   const roleFixed = await prisma.user.updateMany({
     where: {
       role: "agent",
+      email: { endsWith: "@egitmen.superead.com" },
       educator: { isNot: null },
     },
     data: { role: "educator" },
