@@ -24,7 +24,30 @@ const KAPALI_ASAMALAR = [142, 143, 99442091, 114221320];
 const SUPPORT_SOURCE_IDS = (process.env.KOMMO_SUPPORT_SOURCE_IDS || "165365,165447").split(",").map((s) => Number(s.trim()));
 
 type Olay = { t: number; lead: number; yon: "in" | "out"; kim: number };
-type Lead = { id: number; name: string; responsible_user_id: number; status_id: number; pipeline_id: number; created_at: number };
+type Lead = {
+  id: number;
+  name: string;
+  responsible_user_id: number;
+  status_id: number;
+  pipeline_id: number;
+  created_at: number;
+  source_id?: number | null;
+  _embedded?: { tags?: { name: string }[] };
+  custom_fields_values?: { field_name: string; values: { value: unknown }[] }[] | null;
+};
+export type LeadTipi = "bireysel" | "egitici";
+// Satışçının henüz dokunmadığı lead'lerin durduğu ilk aşamalar (Incoming leads, İlk Temas Sağlandı).
+const ILK_ASAMALAR = (process.env.KOMMO_ILK_ASAMALAR || "93042972,93042976").split(",").map((s) => Number(s.trim()));
+/** Hiç yazılmamış lead listesine girmek için lead'in en az bu kadar dakikalık olması gerekir. */
+export const DOKUNULMAMIS_ESIK_DK = 15;
+export type DokunulmamisLead = { leadId: number; leadAdi: string; kommoUserId: number; grup: string; tip: LeadTipi; acildi: string; musteriYazdi: boolean };
+
+/** Eğitici lead'ler etiket veya form alanında "eğitici / eğitmen" geçenlerdir; kalanlar bireysel. */
+export function leadTipi(l: Lead): LeadTipi {
+  const etiket = (l._embedded?.tags || []).map((t) => t.name).join("|");
+  const alan = (l.custom_fields_values || []).map((f) => String(f.values?.[0]?.value ?? "")).join("|");
+  return /e[gğ]itici|e[gğ]itmen/i.test(etiket + "|" + alan) ? "egitici" : "bireysel";
+}
 /** ilk = lead pencere içinde açıldı ve bu, müşterinin ilk mesajına verilen cevap (yeni lead'e ilk dönüş). */
 export type Bekleme = { lead: number; grup: number; bas: number; bit: number | null; dk: number; ilk: boolean };
 export type CevapsizMusteri = { leadId: number; leadAdi: string; kommoUserId: number; grup: string; bekleyenDk: number; yazdigi: string };
@@ -100,7 +123,7 @@ async function leadleriGetir(ids: number[]): Promise<Map<number, Lead>> {
 }
 
 async function acilanLeadler(bas: number, bit: number) {
-  const out: { responsible_user_id: number; created_at: number }[] = [];
+  const out: Lead[] = [];
   for (let p = 1; p <= 100; p++) {
     const j = await kommo(`/leads?filter[pipeline_id]=${PIPELINE_ID}&filter[created_at][from]=${bas}&filter[created_at][to]=${bit}&limit=250&page=${p}&with=source_id`);
     const L = j?._embedded?.leads || [];
@@ -166,22 +189,52 @@ export async function gunleriHesapla(gunler: string[], opts: { cevapsizListesi?:
   const olaylar = await olaylariGetir(bas, bit);
   const leadler = await leadleriGetir([...new Set(olaylar.map((o) => o.lead))]);
   const B = beklemeler(olaylar, leadler, simdi, bas);
+  // Satışçının elle yazdığı lead'ler ve müşterinin yazdığı lead'ler (bot mesajı sayılmaz).
+  const satisciYazdi = new Set(olaylar.filter((o) => o.yon === "out" && o.kim > 0).map((o) => o.lead));
+  const musteriYazdi = new Set(olaylar.filter((o) => o.yon === "in").map((o) => o.lead));
+  const dokunulmamislar: DokunulmamisLead[] = [];
 
   for (const gun of sirali) {
     const g0 = gunBasi(gun);
     const g1 = g0 + 86400;
     const acilan = await acilanLeadler(g0, Math.min(g1 - 1, simdi));
+    const tip = new Map(acilan.map((l) => [l.id, leadTipi(l)]));
+    // Hiç yazılmamış: satışçı mesajı yok ve lead hâlâ ilk aşamalarda (aranıp başka aşamaya taşınanlar sayılmaz).
+    const dokunulmamis = acilan.filter(
+      (l) => !satisciYazdi.has(l.id) && ILK_ASAMALAR.includes(l.status_id) && simdi - l.created_at >= DOKUNULMAMIS_ESIK_DK * 60,
+    );
+    for (const l of dokunulmamis) {
+      if (!gruplar.has(l.responsible_user_id)) continue;
+      dokunulmamislar.push({
+        leadId: l.id,
+        leadAdi: l.name || `Lead #${l.id}`,
+        kommoUserId: l.responsible_user_id,
+        grup: gruplar.get(l.responsible_user_id)!,
+        tip: tip.get(l.id)!,
+        acildi: new Date(l.created_at * 1000).toISOString(),
+        musteriYazdi: musteriYazdi.has(l.id),
+      });
+    }
     for (const [kid, ad] of gruplar) {
       const benim = B.filter((b) => b.grup === kid && b.bas >= g0 && b.bas < g1);
       const sureler = benim.filter((b) => b.bit !== null).map((b) => b.dk).sort((a, b) => a - b);
       // Cevaplanmamış ilk mesajlar da ilk cevap ölçüsüne şimdiye kadarki bekleme süresiyle girer.
       const ilkSureler = benim.filter((b) => b.ilk).map((b) => b.dk).sort((a, b) => a - b);
+      // Tip, lead'in açıldığı günün listesinden; bulunamazsa lead kaydından.
+      const tipi = (id: number) => tip.get(id) ?? (leadler.get(id) ? leadTipi(leadler.get(id)!) : "bireysel");
+      const ilkTip = (t: LeadTipi) => benim.filter((b) => b.ilk && tipi(b.lead) === t).map((b) => b.dk).sort((a, b) => a - b);
+      const grupAcilan = acilan.filter((l) => l.responsible_user_id === kid);
       const yazan = new Set(
         olaylar.filter((o) => o.yon === "in" && o.t >= g0 && o.t < g1 && leadler.get(o.lead)?.responsible_user_id === kid).map((o) => o.lead),
       );
       const veri = {
         kommoAd: ad,
-        leadSayisi: acilan.filter((l) => l.responsible_user_id === kid).length,
+        leadSayisi: grupAcilan.length,
+        bireyselLead: grupAcilan.filter((l) => tip.get(l.id) === "bireysel").length,
+        egiticiLead: grupAcilan.filter((l) => tip.get(l.id) === "egitici").length,
+        bireyselIlkCevap: JSON.stringify(ilkTip("bireysel")),
+        egiticiIlkCevap: JSON.stringify(ilkTip("egitici")),
+        dokunulmamis: dokunulmamis.filter((l) => l.responsible_user_id === kid).length,
         yazanMusteri: yazan.size,
         satisciMesaj: olaylar.filter((o) => o.yon === "out" && o.kim === kid && o.t >= g0 && o.t < g1).length,
         cevapSureleri: JSON.stringify(sureler),
@@ -207,6 +260,9 @@ export async function gunleriHesapla(gunler: string[], opts: { cevapsizListesi?:
         yazdigi: new Date(b.bas * 1000).toISOString(),
       }));
     await prisma.satisDurum.upsert({ where: { anahtar: "cevapsiz" }, create: { anahtar: "cevapsiz", veri: JSON.stringify(liste) }, update: { veri: JSON.stringify(liste) } });
+    // Dün ve bugün açılıp hâlâ hiç yazılmamış lead'ler, en eskisi önce.
+    const dok = JSON.stringify(dokunulmamislar.sort((a, b) => a.acildi.localeCompare(b.acildi)));
+    await prisma.satisDurum.upsert({ where: { anahtar: "dokunulmamis" }, create: { anahtar: "dokunulmamis", veri: dok }, update: { veri: dok } });
     const ozet = JSON.stringify({ gunler: sirali, olay: olaylar.length, bekleme: B.length });
     await prisma.satisDurum.upsert({ where: { anahtar: "son-guncelleme" }, create: { anahtar: "son-guncelleme", veri: ozet }, update: { veri: ozet } });
   }

@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback, Fragment } from "react";
 import { useRouter } from "next/navigation";
 
-type Donem = { lead: number; satis: number; ciro: number; donusum: number | null; sepet: number | null; ilkCevapMedyan: number | null; cevap10: number | null; cevap60: number | null; ilkCevapSayisi: number; cevapMedyan: number | null; cevapSayisi: number; yazanMusteri: number; satisciMesaj: number; cevapsizBirakilan: number };
+type TipOzet = { lead: number; satis: number; ciro: number; donusum: number | null; ilkCevapMedyan: number | null; cevap10: number | null };
+type Donem = { lead: number; satis: number; ciro: number; donusum: number | null; sepet: number | null; ilkCevapMedyan: number | null; cevap10: number | null; cevap60: number | null; ilkCevapSayisi: number; cevapMedyan: number | null; cevapSayisi: number; yazanMusteri: number; satisciMesaj: number; cevapsizBirakilan: number; dokunulmamis: number; bireysel: TipOzet; egitici: TipOzet };
 type Grup = Donem & {
   kommoUserId: number;
   grup: string;
@@ -11,9 +12,11 @@ type Grup = Donem & {
   once: Donem;
   seri: { gun: string; satis: number; ilkCevap: number | null }[];
   simdiCevapsiz: number;
+  simdiDokunulmamis: number;
   kalitePuani: number | null;
   acikKocluk: number;
 };
+type Dokunulmamis = { leadId: number; leadAdi: string; kommoUserId: number; grup: string; tip: "bireysel" | "egitici"; acildi: string; musteriYazdi: boolean };
 type Cevapsiz = { leadId: number; leadAdi: string; kommoUserId: number; grup: string; bekleyenDk: number; yazdigi: string };
 type Ornek = { leadId?: number; metin?: string; aciklama?: string; ifade?: string; kural?: string };
 type Kalite = {
@@ -33,10 +36,15 @@ type Kalite = {
 type Kocluk = { id: string; kommoUserId: number; grup: string; metin: string; durum: string; hedefTarih: string | null; olusturan: string; createdAt: string; tamamlandi: string | null };
 type Veri = {
   donem: { bas: string; bit: string; gun: number };
-  ozet: { satis: number; ciro: number; lead: number; donusum: number | null; ilkCevapMedyan: number | null; cevap10: number | null; simdiCevapsiz: number; once: { satis: number; ciro: number; lead: number } };
+  ozet: { satis: number; ciro: number; lead: number; donusum: number | null; ilkCevapMedyan: number | null; cevap10: number | null; simdiCevapsiz: number;
+    simdiDokunulmamis: number;
+    tip: (TipOzet & { tip: "bireysel" | "egitici"; dokunulmamis: number })[];
+    once: { satis: number; ciro: number; lead: number };
+  };
   gruplar: Grup[];
   cevapsiz: Cevapsiz[];
   cevapsizGuncelleme: string | null;
+  dokunulmamis: Dokunulmamis[];
   sonGuncelleme: string | null;
   veriBaslangici: string | null;
   kalite: { hafta: string | null; haftalar: string[]; raporlar: Kalite[] };
@@ -120,6 +128,9 @@ export default function SatisKarnesi() {
   const [acik, setAcik] = useState<number | null>(null);
   const [cevapsizHepsi, setCevapsizHepsi] = useState(false);
   const [cevapsizGrup, setCevapsizGrup] = useState<number | 0>(0);
+  const [dokGrup, setDokGrup] = useState<number | 0>(0);
+  const [dokTip, setDokTip] = useState<"" | "bireysel" | "egitici">("");
+  const [dokHepsi, setDokHepsi] = useState(false);
   const [yeniGorev, setYeniGorev] = useState<{ metin: string; hedefTarih: string }>({ metin: "", hedefTarih: "" });
   const [guncelleniyor, setGuncelleniyor] = useState(false);
   const [showAyar, setShowAyar] = useState(false);
@@ -222,6 +233,7 @@ export default function SatisKarnesi() {
   const genel = veri?.kalite.raporlar.find((k) => k.kommoUserId === 0);
   const kaliteGrup = (kid: number) => veri?.kalite.raporlar.find((k) => k.kommoUserId === kid);
   const cevapsizListe = (veri?.cevapsiz || []).filter((c) => !cevapsizGrup || c.kommoUserId === cevapsizGrup);
+  const dokListe = (veri?.dokunulmamis || []).filter((d) => (!dokGrup || d.kommoUserId === dokGrup) && (!dokTip || d.tip === dokTip));
   const acikGorevler = (veri?.kocluk || []).filter((k) => k.durum === "acik");
 
   return (
@@ -369,6 +381,104 @@ export default function SatisKarnesi() {
               )}
             </section>
 
+            {/* Bireysel / eğitici */}
+            <section className="bg-white/5 border border-white/10 rounded-2xl p-5">
+              <h2 className="text-white font-semibold">Bireysel ve eğitici</h2>
+              <p className="text-xs text-slate-400 mb-3">
+                Lead türü Kommo etiketinden (eğitici/eğitmen geçenler eğitici), satış türü SuperTracker paketinden. İlk cevap: yeni lead&apos;in ilk mesajına satışçının ilk cevabı, mesai içi medyan.
+              </p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-slate-400 text-xs">
+                      <th className="py-1 pr-3">Tür</th>
+                      <th className="py-1 pr-3">Lead</th>
+                      <th className="py-1 pr-3">Satış</th>
+                      <th className="py-1 pr-3">Ciro</th>
+                      <th className="py-1 pr-3">Dönüşüm</th>
+                      <th className="py-1 pr-3">İlk cevap</th>
+                      <th className="py-1 pr-3">10 dk içinde</th>
+                      <th className="py-1">Şu an hiç yazılmamış</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {veri.ozet.tip.map((t) => (
+                      <tr key={t.tip} className="border-t border-white/5">
+                        <td className="py-2 pr-3 text-white font-medium">{t.tip === "egitici" ? "🎓 Eğitici" : "👤 Bireysel"}</td>
+                        <td className="py-2 pr-3 text-slate-300">{t.lead}</td>
+                        <td className="py-2 pr-3 text-white">{t.satis}</td>
+                        <td className="py-2 pr-3 text-slate-200">{tl(t.ciro)}</td>
+                        <td className={`py-2 pr-3 ${renk(t.donusum, 10, 5, true)}`}>{t.donusum === null ? "—" : `%${t.donusum}`}</td>
+                        <td className={`py-2 pr-3 ${renk(t.ilkCevapMedyan, 10, 30, false)}`}>{dkYaz(t.ilkCevapMedyan)}</td>
+                        <td className={`py-2 pr-3 ${renk(t.cevap10, 70, 40, true)}`}>{t.cevap10 === null ? "—" : `%${t.cevap10}`}</td>
+                        <td className={`py-2 ${t.dokunulmamis ? "text-red-300" : "text-emerald-300"}`}>{t.dokunulmamis}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            {/* Hiç yazılmamış lead'ler */}
+            <section className="bg-amber-600/10 border border-amber-500/20 rounded-2xl p-5">
+              <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+                <div>
+                  <h2 className="text-white font-semibold">🟠 Hiç yazılmamış lead&apos;ler ({veri.ozet.simdiDokunulmamis})</h2>
+                  <p className="text-xs text-slate-400">
+                    Dün ve bugün açılan, satışçının tek mesaj yazmadığı ve hâlâ ilk aşamada (Incoming / İlk Temas) duran lead&apos;ler. Aranıp başka aşamaya taşınanlar listeye girmez. En eskisi en üstte.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <select value={dokTip} onChange={(e) => setDokTip(e.target.value as "" | "bireysel" | "egitici")} className={input}>
+                    <option value="">Tüm türler</option>
+                    <option value="bireysel">Bireysel</option>
+                    <option value="egitici">Eğitici</option>
+                  </select>
+                  <select value={dokGrup} onChange={(e) => setDokGrup(Number(e.target.value))} className={input}>
+                    <option value={0}>Tüm gruplar</option>
+                    {veri.gruplar.map((g) => (
+                      <option key={g.kommoUserId} value={g.kommoUserId}>{g.grup} ({g.simdiDokunulmamis})</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              {dokListe.length === 0 ? (
+                <p className="text-sm text-emerald-300">Hiç yazılmamış lead yok.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-slate-400 text-xs">
+                        <th className="py-1 pr-3">Grup</th>
+                        <th className="py-1 pr-3">Lead</th>
+                        <th className="py-1 pr-3">Tür</th>
+                        <th className="py-1 pr-3">Açıldı</th>
+                        <th className="py-1">Müşteri yazdı mı</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(dokHepsi ? dokListe : dokListe.slice(0, 15)).map((d) => (
+                        <tr key={d.leadId} className="border-t border-white/5">
+                          <td className="py-1.5 pr-3 text-slate-300">{d.grup}</td>
+                          <td className="py-1.5 pr-3">
+                            <a href={KOMMO + d.leadId} target="_blank" rel="noreferrer" className="text-sky-300 hover:underline">{d.leadAdi.slice(0, 50)}</a>
+                          </td>
+                          <td className="py-1.5 pr-3 text-slate-300">{d.tip === "egitici" ? "Eğitici" : "Bireysel"}</td>
+                          <td className="py-1.5 pr-3 text-slate-400">{saatOnce(d.acildi)}</td>
+                          <td className={`py-1.5 ${d.musteriYazdi ? "text-red-300 font-medium" : "text-slate-400"}`}>{d.musteriYazdi ? "Evet, cevap bekliyor" : "Hayır (form / test)"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {dokListe.length > 15 && (
+                    <button onClick={() => setDokHepsi(!dokHepsi)} className="mt-2 text-xs text-slate-300 hover:underline">
+                      {dokHepsi ? "Daha az göster" : `Tümünü göster (${dokListe.length})`}
+                    </button>
+                  )}
+                </div>
+              )}
+            </section>
+
             {/* Grup tablosu */}
             <section className="bg-white/5 border border-white/10 rounded-2xl p-5">
               <h2 className="text-white font-semibold">Gruplar</h2>
@@ -389,6 +499,8 @@ export default function SatisKarnesi() {
                       <th className="py-2 pr-3" title="İlk cevabın 10 dakika / 1 saat içinde verildiği yeni lead oranı">10 dk / 1 sa</th>
                       <th className="py-2 pr-3" title="Konuşma içindeki tüm müşteri mesajlarına cevap süresi (medyan)">Sohbet cevabı</th>
                       <th className="py-2 pr-3">Cevapsız</th>
+                      <th className="py-2 pr-3" title="Bireysel yeni lead'lere ilk cevap (medyan, mesai dakikası)">Bireysel ilk cevap</th>
+                      <th className="py-2 pr-3" title="Dün ve bugün açılıp hiç yazılmamış lead (şu an)">Yazılmamış</th>
                       <th className="py-2 pr-3">Kalite</th>
                       <th className="py-2 pr-3">Koçluk</th>
                       <th className="py-2">Günlük satış</th>
@@ -420,13 +532,15 @@ export default function SatisKarnesi() {
                             </td>
                             <td className={`py-2 pr-3 ${renk(g.cevapMedyan, 5, 20, false)}`}>{dkYaz(g.cevapMedyan)}</td>
                             <td className={`py-2 pr-3 ${g.simdiCevapsiz ? "text-red-300" : "text-emerald-300"}`}>{g.simdiCevapsiz}</td>
+                            <td className={`py-2 pr-3 ${renk(g.bireysel.ilkCevapMedyan, 10, 30, false)}`}>{dkYaz(g.bireysel.ilkCevapMedyan)}</td>
+                            <td className={`py-2 pr-3 ${g.simdiDokunulmamis ? "text-amber-300" : "text-emerald-300"}`}>{g.simdiDokunulmamis}</td>
                             <td className={`py-2 pr-3 ${renk(g.kalitePuani, 25, 18, true)}`}>{g.kalitePuani === null ? "—" : `${g.kalitePuani}/35`}</td>
                             <td className="py-2 pr-3 text-slate-300">{g.acikKocluk ? `${g.acikKocluk} açık` : "—"}</td>
                             <td className="py-2"><Seri seri={g.seri} /></td>
                           </tr>
                           {acik === g.kommoUserId && (
                             <tr>
-                              <td colSpan={13} className="pb-4">
+                              <td colSpan={15} className="pb-4">
                                 <div className="grid lg:grid-cols-2 gap-4 mt-2">
                                   <div className="bg-black/20 rounded-xl p-4 space-y-3">
                                     <h3 className="text-white font-semibold text-sm">Yazışma kalitesi {veri.kalite.hafta ? `(${tarih(veri.kalite.hafta)} haftası)` : ""}</h3>
@@ -498,6 +612,8 @@ export default function SatisKarnesi() {
                                     )}
                                     <div className="text-xs text-slate-500">
                                       Bu dönem: {g.yazanMusteri} müşteri yazdı · grubun {g.satisciMesaj} mesajı · {g.ilkCevapSayisi} yeni lead ve {g.cevapSayisi} cevap ölçüldü · {g.cevapsizBirakilan} konuşma cevapsız kaldı
+                                      <br />
+                                      Bireysel: {g.bireysel.lead} lead · {g.bireysel.satis} satış · ilk cevap {dkYaz(g.bireysel.ilkCevapMedyan)} — Eğitici: {g.egitici.lead} lead · {g.egitici.satis} satış · ilk cevap {dkYaz(g.egitici.ilkCevapMedyan)} — dönemde {g.dokunulmamis} lead hiç yazılmadan kaldı
                                     </div>
                                   </div>
 

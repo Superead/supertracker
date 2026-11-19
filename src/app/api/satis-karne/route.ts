@@ -17,18 +17,22 @@ export async function GET(request: NextRequest) {
   const oncekiBas = gunEkle(bas, -n);
   const gunler = Array.from({ length: n }, (_, i) => gunEkle(bas, i));
 
-  const [satirlar, kullanicilar, satislar, cevapsiz, sonGuncelleme, kocluk, haftalar] = await Promise.all([
+  const [satirlar, kullanicilar, satislar, cevapsiz, sonGuncelleme, kocluk, haftalar, dokunulmamis] = await Promise.all([
     prisma.satisGunluk.findMany({ where: { gun: { gte: oncekiBas, lte: bugun } } }),
     prisma.user.findMany({ where: { kommoUserId: { not: null } }, select: { id: true, name: true, kommoUserId: true, isActive: true } }),
     prisma.sale.findMany({
       where: { isDeleted: false, createdAt: { gte: new Date(gunBasi(oncekiBas) * 1000) } },
-      select: { userId: true, totalPrice: true, createdAt: true },
+      select: { userId: true, totalPrice: true, createdAt: true, packageType: true },
     }),
     prisma.satisDurum.findUnique({ where: { anahtar: "cevapsiz" } }),
     prisma.satisDurum.findUnique({ where: { anahtar: "son-guncelleme" } }),
     prisma.koclukNotu.findMany({ orderBy: [{ durum: "asc" }, { createdAt: "desc" }], take: 200 }),
     prisma.kaliteRaporu.findMany({ select: { hafta: true }, distinct: ["hafta"], orderBy: { hafta: "desc" }, take: 12 }),
+    prisma.satisDurum.findUnique({ where: { anahtar: "dokunulmamis" } }),
   ]);
+  // Eğitici satışı: eğitici eğitimi paketleri; kalan (bireysel, birebir) bireysel sayılır.
+  const egiticiSatis = (p: string) => p === "instructor" || p === "educator";
+  const yuzde = (a: number[], esik: number) => (a.length ? Math.round((100 * a.filter((x) => x <= esik).length) / a.length) : null);
 
   const hafta = request.nextUrl.searchParams.get("hafta") || haftalar[0]?.hafta || null;
   const kalite = hafta ? await prisma.kaliteRaporu.findMany({ where: { hafta } }) : [];
@@ -50,6 +54,19 @@ export async function GET(request: NextRequest) {
     const sat = satislar.filter((s) => kullaniciGrubu.get(s.userId) === kid && trGun(s.createdAt.getTime() / 1000) >= g0 && trGun(s.createdAt.getTime() / 1000) <= g1);
     const lead = r.reduce((t, s) => t + s.leadSayisi, 0);
     const ciro = sat.reduce((t, s) => t + s.totalPrice, 0);
+    const tipOzet = (egitici: boolean) => {
+      const l = r.reduce((t, s) => t + (egitici ? s.egiticiLead : s.bireyselLead), 0);
+      const st = sat.filter((s) => egiticiSatis(s.packageType) === egitici);
+      const ic = r.flatMap((s) => JSON.parse(egitici ? s.egiticiIlkCevap : s.bireyselIlkCevap) as number[]);
+      return {
+        lead: l,
+        satis: st.length,
+        ciro: st.reduce((t, s) => t + s.totalPrice, 0),
+        donusum: l ? Math.round((st.length / l) * 1000) / 10 : null,
+        ilkCevapMedyan: medyan(ic),
+        cevap10: yuzde(ic, 10),
+      };
+    };
     return {
       lead,
       satis: sat.length,
@@ -65,6 +82,9 @@ export async function GET(request: NextRequest) {
       yazanMusteri: r.reduce((t, s) => t + s.yazanMusteri, 0),
       satisciMesaj: r.reduce((t, s) => t + s.satisciMesaj, 0),
       cevapsizBirakilan: r.reduce((t, s) => t + s.cevapsiz, 0),
+      dokunulmamis: r.reduce((t, s) => t + s.dokunulmamis, 0),
+      bireysel: tipOzet(false),
+      egitici: tipOzet(true),
       _sureler: ilk,
     };
   };
@@ -79,6 +99,7 @@ export async function GET(request: NextRequest) {
   );
 
   const cevapsizListe: { kommoUserId: number }[] = cevapsiz ? JSON.parse(cevapsiz.veri) : [];
+  const dokunulmamisListe: { kommoUserId: number; tip: string }[] = dokunulmamis ? JSON.parse(dokunulmamis.veri) : [];
   const gruplar = [...new Set([...ad.keys(), ...uyeler.keys()])]
     .filter((kid) => ad.has(kid))
     .map((kid) => {
@@ -100,6 +121,7 @@ export async function GET(request: NextRequest) {
         once: onceOzet,
         seri,
         simdiCevapsiz: cevapsizListe.filter((c) => c.kommoUserId === kid).length,
+        simdiDokunulmamis: dokunulmamisListe.filter((c) => c.kommoUserId === kid).length,
         kalitePuani: kalitePuani.get(kid) ?? null,
         acikKocluk: kocluk.filter((k) => k.kommoUserId === kid && k.durum === "acik").length,
       };
@@ -118,6 +140,24 @@ export async function GET(request: NextRequest) {
     ilkCevapMedyan: medyan(tumSureler),
     cevap10: tumSureler.length ? Math.round((100 * tumSureler.filter((x) => x <= 10).length) / tumSureler.length) : null,
     simdiCevapsiz: cevapsizListe.length,
+    simdiDokunulmamis: dokunulmamisListe.length,
+    tip: (["bireysel", "egitici"] as const).map((t) => {
+      const ic = satirlar
+        .filter((s) => s.gun >= bas && ad.has(s.kommoUserId))
+        .flatMap((s) => JSON.parse(t === "egitici" ? s.egiticiIlkCevap : s.bireyselIlkCevap) as number[]);
+      const lead = gruplar.reduce((x, g) => x + g[t].lead, 0);
+      const satis = gruplar.reduce((x, g) => x + g[t].satis, 0);
+      return {
+        tip: t,
+        lead,
+        satis,
+        ciro: gruplar.reduce((x, g) => x + g[t].ciro, 0),
+        donusum: lead ? Math.round((satis / lead) * 1000) / 10 : null,
+        ilkCevapMedyan: medyan(ic),
+        cevap10: yuzde(ic, 10),
+        dokunulmamis: dokunulmamisListe.filter((d) => d.tip === t).length,
+      };
+    }),
     once: { satis: toplaOnce("satis"), ciro: toplaOnce("ciro"), lead: toplaOnce("lead") },
   };
 
@@ -127,6 +167,7 @@ export async function GET(request: NextRequest) {
     gruplar,
     cevapsiz: cevapsizListe,
     cevapsizGuncelleme: cevapsiz?.updatedAt || null,
+    dokunulmamis: dokunulmamisListe,
     sonGuncelleme: sonGuncelleme?.updatedAt || null,
     veriBaslangici: satirlar.length ? satirlar.reduce((m, s) => (s.gun < m ? s.gun : m), "9999") : null,
     kalite: { hafta, haftalar: haftalar.map((h) => h.hafta), raporlar: kalite.map((k) => ({ kommoUserId: k.kommoUserId, grup: k.grup, ...JSON.parse(k.veri) })) },
