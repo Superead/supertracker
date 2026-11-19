@@ -8,7 +8,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (!token && (path.startsWith("/agent") || path.startsWith("/admin") || path.startsWith("/dashboard") || path.startsWith("/egitim") || path.startsWith("/randevu"))) {
+  if (!token && (path.startsWith("/agent") || path.startsWith("/admin") || path.startsWith("/dashboard") || path.startsWith("/egitim") || path.startsWith("/randevu") || path.startsWith("/satis-karne"))) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 

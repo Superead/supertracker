@@ -1,7 +1,8 @@
 /*
  * Sunucu açılırken bir kez çalışır. 5 dakikada bir:
  *  - AI devir kontrolü (kapatmak için Railway'de AI_DEVIR_AKTIF=0),
- *  - birebir ders hatırlatmaları (kapatmak için DERS_HATIRLATMA_AKTIF=0; DERS_HATIRLATMA_BOT_ID yoksa göndermez).
+ *  - birebir ders hatırlatmaları (kapatmak için DERS_HATIRLATMA_AKTIF=0; DERS_HATIRLATMA_BOT_ID yoksa göndermez),
+ *  - satış karnesi, saatte bir (kapatmak için SATIS_KARNE_AKTIF=0).
  */
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
@@ -19,6 +20,10 @@ export async function register() {
   if (process.env.RANDEVU_HATIRLATMA_AKTIF !== "0") {
     const { randevuHatirlatmalariniGonder } = await import("./lib/randevu");
     gorevler.push({ ad: "randevu-hatirlatma", calistir: randevuHatirlatmalariniGonder });
+  }
+  if (process.env.SATIS_KARNE_AKTIF !== "0") {
+    const { satisKarnesiniGuncelle } = await import("./lib/satis-karne");
+    gorevler.push({ ad: "satis-karne", calistir: satisKarnesiniGuncelle });
   }
   if (!gorevler.length) return;
 
